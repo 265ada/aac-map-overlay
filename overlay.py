@@ -49,6 +49,18 @@ WS_EX_LAYERED, WS_EX_TRANSPARENT, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE = 0x80000, 
 LWA_ALPHA = 0x2
 MOD_ALT, MOD_CONTROL, MOD_NOREPEAT = 0x1, 0x2, 0x4000
 WM_HOTKEY = 0x0312
+class RECT(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wt.DWORD), ("rcMonitor", RECT), ("rcWork", RECT), ("dwFlags", wt.DWORD)]
+
+
+user32.MonitorFromWindow.restype = wt.HMONITOR
+user32.MonitorFromWindow.argtypes = [wt.HWND, wt.DWORD]
+MONITOR_DEFAULTTONEAREST = 2
+SWP_NOZORDER, SWP_NOACTIVATE = 0x0004, 0x0010
 VK = {"M": 0x4D, "L": 0x4C, "H": 0x48, "UP": 0x26, "DOWN": 0x28}
 
 
@@ -67,6 +79,7 @@ class Overlay:
         self.window = None
         self.adblock = AdBlocker(CFG_DIR) if self.s.get("adblock", True) else None
         self.update = None  # newer release info, once found
+        self.max_from = None  # window rect (screen pixels) before maximizing
 
     # ---- native window helpers -------------------------------------------
     def hwnd(self):
@@ -142,11 +155,36 @@ class Overlay:
                     print("hotkey error:", e)
 
     # ---- window events ----------------------------------------------------
+    # ---- maximize / restore ---------------------------------------------
+    def toggle_max(self):
+        """Fill the monitor the overlay is on (minus the taskbar), or go back to the old size."""
+        h = self.hwnd()
+        if not h:
+            return False
+        if self.max_from:
+            l, t, r, b = self.max_from
+            self.max_from = None
+            user32.SetWindowPos(h, None, l, t, r - l, b - t, SWP_NOZORDER | SWP_NOACTIVATE)
+            return False
+        cur = RECT()
+        user32.GetWindowRect(h, ctypes.byref(cur))
+        mi = MONITORINFO()
+        mi.cbSize = ctypes.sizeof(MONITORINFO)
+        user32.GetMonitorInfoW(user32.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), ctypes.byref(mi))
+        self.max_from = (cur.left, cur.top, cur.right, cur.bottom)  # set before moving: no saves while maximized
+        w = mi.rcWork
+        user32.SetWindowPos(h, None, w.left, w.top, w.right - w.left, w.bottom - w.top, SWP_NOZORDER | SWP_NOACTIVATE)
+        return True
+
     def on_moved(self, x, y):
+        if self.max_from:
+            return  # keep the normal size and place for next start
         self.s["x"], self.s["y"] = x, y
         self.save()
 
     def on_resized(self, w, h):
+        if self.max_from:
+            return
         self.s["w"], self.s["h"] = w, h
         self.save()
 
@@ -251,6 +289,9 @@ class Api:
 
     def lock(self):
         self._ov.set_lock(True)
+
+    def toggle_max(self):
+        return self._ov.toggle_max()
 
     def resize(self, w, h):
         self._ov.window.resize(max(300, int(w)), max(260, int(h)))

@@ -53,6 +53,7 @@ Both sides remember the code, so you only do this once.
 | Map and Markers menus | Auroria or any of the 8 dungeon maps, plus marker presets (normal mode) |
 | ☰ | Pick marker types one by one (normal mode) |
 | Slider | Opacity, 20–100% |
+| ⛶ / 🗗 | Maximize to the monitor the overlay is on, then back to its previous size and place |
 | 🔒 | Lock: clicks pass through to the game |
 
 ### Hotkeys (work while the game has focus)

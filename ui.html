@@ -58,6 +58,7 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
   <button class="icon" id="disc" type="button" title="Auto-discover: stand on a pin for 3 seconds and it is marked discovered (Live mode)" aria-pressed="false">✓</button>
   <button class="icon" id="filt" type="button" title="Choose markers" aria-expanded="false">☰</button>
   <button class="icon" id="lock" type="button" title="Lock: clicks go through to the game (Alt+L to unlock)">🔒</button>
+  <button class="icon" id="max" type="button" title="Maximize to this monitor (click again to go back)" aria-pressed="false">⛶</button>
   <button class="icon" id="hide" type="button" title="Hide (Ctrl+Alt+M to show)">–</button>
   <button class="icon" id="quit" type="button" title="Close the overlay">✕</button>
 </div>
@@ -164,6 +165,13 @@ $('filt').onclick = () => { const o = $('types').classList.toggle('open'); $('fi
 $('opacity').oninput = e => { $('opv').textContent = e.target.value + '%'; api() && api().set_opacity(e.target.value / 100); };
 $('lock').onclick = () => api() && api().lock();
 $('hide').onclick = () => api() && api().hide();
+$('max').onclick = async () => {
+  if (!api()) return;
+  const on = await api().toggle_max();
+  $('max').setAttribute('aria-pressed', !!on);
+  $('max').textContent = on ? '🗗' : '⛶';
+  $('max').title = on ? 'Back to the previous size' : 'Maximize to this monitor (click again to go back)';
+};
 $('quit').onclick = () => api() && api().quit();
 $('credit').onclick = e => { e.preventDefault(); api() ? api().open_url($('credit').href) : open($('credit').href); };
 
