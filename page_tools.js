@@ -2,7 +2,7 @@
 // Takes commands from our overlay UI through postMessage:
 //   {aao: 'bars', hidden: true|false}   hide TH.GL's top header
 //   {aao: 'autozoom', on: true|false}   smart zoom
-//   {aao: 'autodiscover', on: true|false}  mark pins you stand on for 3 s
+//   {aao: 'autodiscover', on: true|false, radius: metres}  mark pins you stand on for 3 s
 //
 // Smart zoom: TH.GL's map follows your character, so the map centre is you.
 // Every ~0.8 s it measures how far the nearest visible pins are from the centre
@@ -105,7 +105,7 @@
   // Uses your live position from the TH.GL app (Peer Link) and TH.GL's own
   // "auto discovered" list, so it shows and syncs like the app's own marks.
   const DWELL_MS = 3000;     // how long you must stay on it
-  const RADIUS = 2000;       // game units (cm): within 20 m counts as "on it" (pins are not exact)
+  let RADIUS = 800;          // game units (cm): within 8 m counts as "on it"; set from the overlay's top bar
   let discoverOn = false, discTimer = 0, peersRef = null, markFn = null, meId = '', meAt = 0, lastStatus = 0;
   const near = new Map();    // pin id -> time you came within RADIUS
   const moved = new Set();   // pins that move (monsters etc.) are never marked
@@ -194,7 +194,7 @@
     }
   }
 
-  window.__aaoDisc = {near, myPosition, findMark: () => markDiscovered.length && (markFn || walkFibers(s => s && typeof s === 'object' && typeof s.markAutoDiscovered === 'function' ? s.markAutoDiscovered : null))}; // troubleshooting
+  window.__aaoDisc = {near, myPosition, radius: () => RADIUS, findMark: () => markDiscovered.length && (markFn || walkFibers(s => s && typeof s === 'object' && typeof s.markAutoDiscovered === 'function' ? s.markAutoDiscovered : null))}; // troubleshooting
 
   function setDiscover(on) {
     discoverOn = !!on;
@@ -251,7 +251,11 @@
     if (e.source !== window.parent || !d || typeof d !== 'object' || !d.aao) return;
     if (d.aao === 'bars') setBars(!!d.hidden);
     if (d.aao === 'autozoom') setAuto(d.on);
-    if (d.aao === 'autodiscover') setDiscover(d.on);
+    if (d.aao === 'autodiscover') {
+      const r = Number(d.radius);
+      if (Number.isFinite(r) && r >= 1 && r <= 100) RADIUS = r * 100; // metres -> game units (cm)
+      setDiscover(d.on);
+    }
     if (d.aao === 'peerRestore' && !restoreAsked) { restoreAsked = true; restorePeer(d.code, d.me); }
   });
   let restoreAsked = false;

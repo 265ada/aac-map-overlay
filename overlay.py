@@ -36,7 +36,7 @@ CFG_DIR = pathlib.Path(os.environ.get("APPDATA", HERE)) / "AACMapOverlay"
 CFG = CFG_DIR / "settings.json"
 TITLE = "AAC Map Overlay"
 PORT = 47853  # fixed, so the map's saved Peer Link settings survive restarts
-DEFAULTS = {"map": "Auroria", "preset": "collect", "types": [], "live": False, "liveSeen": False, "adblock": True, "autoZoom": True, "autoDiscover": True, "autoUpdate": True, "barsHidden": False, "opacity": 0.9,
+DEFAULTS = {"map": "Auroria", "preset": "collect", "types": [], "live": False, "liveSeen": False, "adblock": True, "autoZoom": True, "autoDiscover": True, "discRadius": 8, "autoUpdate": True, "barsHidden": False, "opacity": 0.9,
             "x": 40, "y": 120, "w": 460, "h": 560}
 
 user32 = ctypes.windll.user32
@@ -240,7 +240,7 @@ class Api:
         threading.Thread(target=self._ov.install_update, daemon=True).start()
 
     def save(self, patch):
-        self._ov.s.update({k: v for k, v in patch.items() if k in ("map", "preset", "types", "live", "liveSeen", "autoZoom", "autoDiscover", "autoUpdate", "barsHidden", "peerCode", "peerMe")})
+        self._ov.s.update({k: v for k, v in patch.items() if k in ("map", "preset", "types", "live", "liveSeen", "autoZoom", "autoDiscover", "discRadius", "autoUpdate", "barsHidden", "peerCode", "peerMe")})
         self._ov.save()
 
     def set_opacity(self, v):

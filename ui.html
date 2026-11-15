@@ -17,6 +17,7 @@ button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outlin
 .icon{width:26px;padding:3px 0;text-align:center}
 .row2{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--bar);border-bottom:1px solid var(--line);flex-wrap:wrap}
 .row2 select{flex:1;min-width:120px}
+.row2 select#radius{flex:none;min-width:0;width:auto}
 input[type=range]{width:90px;accent-color:var(--accent)}
 .op{color:var(--muted);font-size:12px;min-width:32px;text-align:right}
 #types{display:none;grid-template-columns:1fr 1fr;gap:2px 10px;padding:8px;background:var(--bar);border-bottom:1px solid var(--line)}
@@ -63,6 +64,7 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
   <label class="sr" for="map" hidden>Map</label>
   <select id="map" aria-label="Map"></select>
   <select id="preset" aria-label="Markers"></select>
+  <select id="radius" aria-label="Auto-discover range" title="Auto-discover range: how close you must stay to a pin for 3 seconds"></select>
   <input id="opacity" type="range" min="20" max="100" step="5" aria-label="Opacity">
   <span class="op" id="opv"></span>
 </div>
@@ -76,7 +78,7 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
 </div>
 <div class="foot">
   <a href="https://archeagechronicles.th.gl/" id="credit">ArcheAge Chronicles Interactive Map</a> by The Hidden Gaming Lair
-  <span id="discst" title="Auto-discover: nearest uncollected pin. Stay within 20 m for 3 s to mark it" hidden></span>
+  <span id="discst" title="Auto-discover: nearest uncollected pin. Stay within range for 3 s to mark it" hidden></span>
   <span id="ads" title="Ads and trackers blocked (Brave's ad-block engine with EasyList)" hidden></span>
   <span class="keys">Alt+L lock · Ctrl+Alt+ M hide · H bars · ↑↓ opacity</span>
   <div class="grip" id="grip" title="Drag to resize"></div>
@@ -114,14 +116,14 @@ function load(){
   $('credit').href = `${BASE}/maps/${encodeURIComponent(S.map)}`;
   $('types').querySelectorAll('input').forEach(i => i.checked = (currentTypes() || []).includes(i.value));
 }
-function persist(){ api() && api().save({map:S.map, preset:S.preset, types:S.types, live:!!S.live, liveSeen:!!S.liveSeen, autoZoom:!!S.autoZoom, autoDiscover:!!S.autoDiscover, barsHidden:!!S.barsHidden}); }
+function persist(){ api() && api().save({map:S.map, preset:S.preset, types:S.types, live:!!S.live, liveSeen:!!S.liveSeen, autoZoom:!!S.autoZoom, autoDiscover:!!S.autoDiscover, discRadius:S.discRadius || 8, barsHidden:!!S.barsHidden}); }
 
 // ---- talk to our helper script inside the map page (page_tools.js) ----
 function tellMap(){
   const f = $('frame').contentWindow; if (!f) return;
   f.postMessage({aao:'bars', hidden:!!S.barsHidden}, '*');
   f.postMessage({aao:'autozoom', on:!!S.autoZoom}, '*');
-  f.postMessage({aao:'autodiscover', on:!!S.autoDiscover}, '*');
+  f.postMessage({aao:'autodiscover', on:!!S.autoDiscover, radius:S.discRadius || 8}, '*');
   if (S.peerCode) f.postMessage({aao:'peerRestore', code:S.peerCode, me:S.peerMe || ''}, '*');
 }
 window.addEventListener('message', e => {
@@ -140,6 +142,8 @@ window.addEventListener('message', e => {
 });
 $('frame').addEventListener('load', tellMap);
 window.setBars = h => { S.barsHidden = !!h; document.body.classList.toggle('barshidden', S.barsHidden); tellMap(); };
+$('radius').innerHTML = [5, 6, 7, 8, 9, 10, 12, 15, 18, 20, 25, 30].map(m => `<option value="${m}">✓ ${m} m</option>`).join('');
+$('radius').onchange = e => { S.discRadius = Number(e.target.value); tellMap(); persist(); };
 $('disc').onclick = () => { S.autoDiscover = !S.autoDiscover; if (!S.autoDiscover) $('discst').hidden = true; $('disc').setAttribute('aria-pressed', S.autoDiscover); tellMap(); persist(); };
 $('zoom').onclick = () => { S.autoZoom = !S.autoZoom; $('zoom').setAttribute('aria-pressed', S.autoZoom); tellMap(); persist(); };
 $('live').onclick = () => { S.live = !S.live; load(); persist(); };
@@ -207,6 +211,7 @@ async function init(){
   $('zoom').setAttribute('aria-pressed', !!S.autoZoom);
   $('grip').title = `Drag to resize · version ${S.version || '?'}`;
   $('disc').setAttribute('aria-pressed', !!S.autoDiscover);
+  $('radius').value = String(S.discRadius || 8); if (!$('radius').value) $('radius').value = '8';
   document.body.classList.toggle('barshidden', !!S.barsHidden);
   load();
 }
