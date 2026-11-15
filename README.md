@@ -60,7 +60,7 @@ Both sides remember the code, so you only do this once.
 | | |
 |---|---|
 | **Ctrl+Alt+M** | Show / hide the overlay |
-| **Alt+L** | Lock / unlock |
+| **Alt+L** | Lock / unlock. Locking hides every bar (map only, clicks go to the game); unlocking brings the bars back |
 | **Ctrl+Alt+H** | Hide / show the top bars. While they're hidden, drag the thin strip at the top edge to move the window |
 | **Ctrl+Alt+↑ / ↓** | More / less opaque |
 
