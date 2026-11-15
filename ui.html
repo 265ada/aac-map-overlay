@@ -122,10 +122,15 @@ function tellMap(){
   f.postMessage({aao:'bars', hidden:!!S.barsHidden}, '*');
   f.postMessage({aao:'autozoom', on:!!S.autoZoom}, '*');
   f.postMessage({aao:'autodiscover', on:!!S.autoDiscover}, '*');
+  if (S.peerCode) f.postMessage({aao:'peerRestore', code:S.peerCode, me:S.peerMe || ''}, '*');
 }
 window.addEventListener('message', e => {
   if (e.source !== $('frame').contentWindow || !e.data) return;
   if (e.data.aao === 'hello') tellMap();
+  if (e.data.aao === 'peer' && e.data.code && (e.data.code !== S.peerCode || (e.data.me || '') !== (S.peerMe || ''))) {
+    S.peerCode = e.data.code; S.peerMe = e.data.me || ''; // backup of the Peer Link setup
+    api() && api().save({peerCode: S.peerCode, peerMe: S.peerMe});
+  }
   if (e.data.aao === 'discStatus') {
     const d = e.data, el = $('discst'), name = (d.key || '').replace(/^doodad-/, '').replace(/-/g, ' ');
     el.hidden = !S.autoDiscover || d.d == null;

@@ -238,7 +238,7 @@ class Api:
         threading.Thread(target=self._ov.install_update, daemon=True).start()
 
     def save(self, patch):
-        self._ov.s.update({k: v for k, v in patch.items() if k in ("map", "preset", "types", "live", "liveSeen", "autoZoom", "autoDiscover", "autoUpdate", "barsHidden")})
+        self._ov.s.update({k: v for k, v in patch.items() if k in ("map", "preset", "types", "live", "liveSeen", "autoZoom", "autoDiscover", "autoUpdate", "barsHidden", "peerCode", "peerMe")})
         self._ov.save()
 
     def set_opacity(self, v):

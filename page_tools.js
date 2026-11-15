@@ -209,13 +209,52 @@
     if (autoOn) { pausedUntil = 0; timer = setInterval(tick, 800); tick(); }
   }
 
+  // ---- Peer Link backup: keep the Peer Code and "Me" in the overlay's own settings ----
+  // TH.GL keeps them in this page's browser storage, which a reinstall, update or
+  // cleared cache can wipe. We copy them out to the overlay and put them back.
+  function readPeer() {
+    try {
+      const st = JSON.parse(localStorage.getItem('settings-storage')).state;
+      const s = (st.profiles.find(p => p.id === st.currentProfileId) || st.profiles[0]).settings;
+      return {code: s.peerCode || '', auto: !!s.autoJoinPeer, me: s.lastMeSenderId || ''};
+    } catch (e) { return null; }
+  }
+  let lastSent = '';
+  setInterval(() => { // report changes (new code, new "Me") to the overlay
+    const p = readPeer();
+    if (!p || !p.code || window.parent === window) return;
+    const key = p.code + '|' + p.me;
+    if (key !== lastSent) { lastSent = key; window.parent.postMessage({aao: 'peer', code: p.code, me: p.me}, '*'); }
+  }, 3000);
+
+  function restorePeer(code, me) {
+    if (!code) return;
+    let tries = 0;
+    const attempt = () => {
+      const cur = readPeer();
+      const store = walkFibers(s => s && typeof s === 'object' && typeof s.setPeerCode === 'function' && typeof s.setAutoJoinPeer === 'function' ? s : null);
+      if (!cur || !store) { if (++tries < 30) setTimeout(attempt, 1000); return; }
+      if (!cur.me && me) store.setLastMeSenderId && store.setLastMeSenderId(me);
+      if (cur.code) return; // already has a code (joined, or left on purpose): leave it alone
+      store.setPeerCode(code);
+      store.setAutoJoinPeer(true);
+      if (me && store.setLastMeSenderId) store.setLastMeSenderId(me);
+      // TH.GL joins saved meshes when the page loads, so reload once to join now
+      try { if (sessionStorage.getItem('aaoPeerRestored')) return; sessionStorage.setItem('aaoPeerRestored', '1'); } catch (e) { /* no storage: reload anyway */ }
+      setTimeout(() => location.reload(), 300);
+    };
+    attempt();
+  }
+
   window.addEventListener('message', e => {
     const d = e.data;
     if (e.source !== window.parent || !d || typeof d !== 'object' || !d.aao) return;
     if (d.aao === 'bars') setBars(!!d.hidden);
     if (d.aao === 'autozoom') setAuto(d.on);
     if (d.aao === 'autodiscover') setDiscover(d.on);
+    if (d.aao === 'peerRestore' && !restoreAsked) { restoreAsked = true; restorePeer(d.code, d.me); }
   });
+  let restoreAsked = false;
   // ask the overlay for the current settings once this page is up
   if (window.parent !== window) window.parent.postMessage({aao: 'hello'}, '*');
 })();
