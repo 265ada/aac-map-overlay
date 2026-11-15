@@ -158,9 +158,10 @@ class Overlay:
 
     # ---- updates (GitHub Releases) -----------------------------------------
     def update_loop(self):
-        """Check at start and every 6 hours. At start, install right away if allowed."""
+        """Check at start and every 30 minutes. At start, install right away if allowed."""
         time.sleep(4)
         first = True
+        shown = ""
         while True:
             try:
                 info = updater.check()
@@ -172,9 +173,11 @@ class Overlay:
                 if first and self.s.get("autoUpdate", True) and updater.can_self_update() and info.get("url"):
                     self.install_update()
                     return
-                self.tell_update("available")
+                if info["version"] != shown:  # show each new version once; "Later" isn't re-nagged
+                    shown = info["version"]
+                    self.tell_update("available")
             first = False
-            time.sleep(6 * 3600)
+            time.sleep(30 * 60)
 
     def tell_update(self, state, err=""):
         if self.window and self.update:

@@ -22,7 +22,7 @@ Needs Windows 10 or 11 (64-bit). The Edge WebView2 runtime it uses is already pa
 
 ## Updates
 
-The overlay checks GitHub for a new release every time it starts and every 6 hours while it runs.
+The overlay checks GitHub for a new release every time it starts and every 30 minutes while it runs.
 
 - **At start:** a new version downloads and installs by itself, then the overlay reopens.
 - **While running:** a banner offers **Update** or **Later**, so it never restarts in the middle of play.
