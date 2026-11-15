@@ -6,7 +6,7 @@ map and marker pickers, opacity, click-through lock and global hotkeys.
 
 Hotkeys (work while the game has focus):
   Ctrl+Alt+M      show / hide the overlay
-  Ctrl+Alt+L      lock / unlock (locked = clicks go through to the game)
+  Alt+L           lock / unlock (locked = clicks go through to the game)
   Ctrl+Alt+Up     more opaque
   Ctrl+Alt+Down   more transparent
   Ctrl+Alt+H      hide / show the top bars
@@ -124,13 +124,15 @@ class Overlay:
 
     # ---- global hotkeys ---------------------------------------------------
     def hotkeys(self):
-        keys = {1: ("M", self.toggle_visible), 2: ("L", lambda: self.set_lock(not self.locked)),
+        ctrl_alt = MOD_CONTROL | MOD_ALT
+        keys = {1: ("M", self.toggle_visible), 2: ("L", lambda: self.set_lock(not self.locked), MOD_ALT),
                 3: ("UP", lambda: self.set_opacity(self.s["opacity"] + 0.1)),
                 4: ("DOWN", lambda: self.set_opacity(self.s["opacity"] - 0.1)),
                 5: ("H", self.toggle_bars)}
-        for i, (k, _) in keys.items():
-            if not user32.RegisterHotKey(None, i, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK[k]):
-                print(f"Could not register Ctrl+Alt+{k}: another app is using it.")
+        for i, (k, _, *mods) in keys.items():
+            mod = mods[0] if mods else ctrl_alt
+            if not user32.RegisterHotKey(None, i, mod | MOD_NOREPEAT, VK[k]):
+                print(f"Could not register hotkey {k} (mods {mod}): another app is using it.")
         msg = wt.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
             if msg.message == WM_HOTKEY and msg.wParam in keys:

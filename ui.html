@@ -55,7 +55,7 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
   <button class="icon" id="zoom" type="button" title="Smart zoom: zooms in on tight clusters of pins around you, out in open areas (scrolling the map pauses it 10 s)" aria-pressed="false">🔍</button>
   <button class="icon" id="disc" type="button" title="Auto-discover: stand on a pin for 3 seconds and it is marked discovered (Live mode)" aria-pressed="false">✓</button>
   <button class="icon" id="filt" type="button" title="Choose markers" aria-expanded="false">☰</button>
-  <button class="icon" id="lock" type="button" title="Lock: clicks go through to the game (Ctrl+Alt+L to unlock)">🔒</button>
+  <button class="icon" id="lock" type="button" title="Lock: clicks go through to the game (Alt+L to unlock)">🔒</button>
   <button class="icon" id="hide" type="button" title="Hide (Ctrl+Alt+M to show)">–</button>
   <button class="icon" id="quit" type="button" title="Close the overlay">✕</button>
 </div>
@@ -70,7 +70,7 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
 <div class="mapwrap">
   <div class="dragstrip pywebview-drag-region" title="Drag to move · Ctrl+Alt+H shows the bars"></div>
   <div id="upd" role="status"><span id="updtext"></span><button type="button" class="go" id="updgo">Update</button><button type="button" id="updlater">Later</button></div>
-  <div id="lockbadge">Locked · Ctrl+Alt+L to unlock</div>
+  <div id="lockbadge">Locked · Alt+L to unlock</div>
   <div id="livehelp"><b>Live mode, first time only:</b> open the TH.GL app on your PC and copy its <b>Peer Code</b>. Here, click <b>Peer Link</b> in the map's top-right controls, paste the code, pick your app as <b>Me</b> and turn on <b>Live mode</b>. It remembers this. <button type="button" id="livehelpx">Got it</button></div>
   <iframe id="frame" title="ArcheAge Chronicles Interactive Map" allowfullscreen></iframe>
 </div>
@@ -78,7 +78,7 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
   <a href="https://archeagechronicles.th.gl/" id="credit">ArcheAge Chronicles Interactive Map</a> by The Hidden Gaming Lair
   <span id="discst" title="Auto-discover: nearest uncollected pin. Stay within 20 m for 3 s to mark it" hidden></span>
   <span id="ads" title="Ads and trackers blocked (Brave's ad-block engine with EasyList)" hidden></span>
-  <span class="keys">Ctrl+Alt+M hide · H bars · L lock · ↑↓ opacity</span>
+  <span class="keys">Alt+L lock · Ctrl+Alt+ M hide · H bars · ↑↓ opacity</span>
   <div class="grip" id="grip" title="Drag to resize"></div>
 </div>
 <script>
