@@ -2,7 +2,7 @@
 #   1. bump __version__ in version.py (e.g. "1.0.1") and commit
 #   2. git tag v1.0.1 && git push origin main v1.0.1
 # Installed overlays find the new release on their next start (or within
-# 30 minutes while running) and update themselves.
+# 5 minutes while running) and update themselves.
 name: Release
 
 on:

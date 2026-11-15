@@ -158,7 +158,7 @@ class Overlay:
 
     # ---- updates (GitHub Releases) -----------------------------------------
     def update_loop(self):
-        """Check at start and every 30 minutes. At start, install right away if allowed."""
+        """Check at start and every 5 minutes. At start, install right away if allowed."""
         time.sleep(4)
         first = True
         shown = ""
@@ -177,7 +177,7 @@ class Overlay:
                     shown = info["version"]
                     self.tell_update("available")
             first = False
-            time.sleep(30 * 60)
+            time.sleep(5 * 60)  # 12 checks an hour, well under GitHub's 60/hour limit
 
     def tell_update(self, state, err=""):
         if self.window and self.update:
