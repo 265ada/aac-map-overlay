@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AAC Map Overlay</title>
+<style>
+:root{--bg:#14171c;--bar:#1d2128;--line:#323946;--fg:#e8ebf0;--muted:#9aa3b1;--accent:#ff8a4c;--ok:#5fd08d}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.35 "Segoe UI",system-ui,sans-serif;overflow:hidden}
+body{display:flex;flex-direction:column;border:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--bar);border-bottom:1px solid var(--line);user-select:none}
+.title{font-weight:600;letter-spacing:.02em;flex:1;cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+select,button{font:inherit;color:var(--fg);background:#262b34;border:1px solid var(--line);border-radius:5px;padding:3px 7px}
+button{cursor:pointer}
+button:hover,select:hover{border-color:var(--muted)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.icon{width:26px;padding:3px 0;text-align:center}
+.row2{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--bar);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.row2 select{flex:1;min-width:120px}
+input[type=range]{width:90px;accent-color:var(--accent)}
+.op{color:var(--muted);font-size:12px;min-width:32px;text-align:right}
+#types{display:none;grid-template-columns:1fr 1fr;gap:2px 10px;padding:8px;background:var(--bar);border-bottom:1px solid var(--line)}
+#types.open{display:grid}
+#types label{display:flex;gap:6px;align-items:center;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#types input{accent-color:var(--accent)}
+.mapwrap{flex:1;position:relative;min-height:0}
+iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#0d0f12}
+.foot{display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--bar);border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.foot a{color:var(--muted)}
+.foot .keys{flex:1;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grip{width:16px;height:16px;cursor:nwse-resize;flex:none;background:linear-gradient(135deg,transparent 50%,var(--muted) 50%,var(--muted) 60%,transparent 60%,transparent 70%,var(--muted) 70%,var(--muted) 80%,transparent 80%)}
+#lockbadge{display:none;position:absolute;top:6px;left:50%;transform:translateX(-50%);background:rgba(20,23,28,.85);border:1px solid var(--line);border-radius:12px;padding:2px 10px;font-size:11px;color:var(--muted);pointer-events:none;z-index:2}
+body.locked .bar,body.locked .row2,body.locked #types,body.locked .foot .keys,body.locked .grip{opacity:.25}
+body.locked #lockbadge{display:block}
+#live[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1b1209}
+body.live #preset,body.live #filt{display:none}
+#livehelp{display:none;position:absolute;left:8px;right:8px;bottom:8px;z-index:3;background:rgba(29,33,40,.96);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:12px}
+body.live.newlive #livehelp{display:block}
+#livehelp button{margin-top:6px;display:block}
+#upd{display:none;position:absolute;left:8px;right:8px;top:8px;z-index:5;background:rgba(29,33,40,.97);border:1px solid var(--ok);border-radius:8px;padding:8px 10px;font-size:12px;align-items:center;gap:8px}
+#upd.show{display:flex}
+#upd span{flex:1}
+#upd .go{background:var(--ok);border-color:var(--ok);color:#0b1a10}
+#zoom[aria-pressed="true"],#disc[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1b1209}
+body.barshidden .bar,body.barshidden .row2,body.barshidden #types{display:none}
+.dragstrip{display:none;position:absolute;top:0;left:0;right:0;height:8px;z-index:4;cursor:move}
+body.barshidden .dragstrip{display:block}
+body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="title pywebview-drag-region" title="Drag to move">AAC Map</div>
+  <button class="icon" id="live" type="button" title="Live: TH.GL's full map with your live position (needs the TH.GL app + Peer Link)" aria-pressed="false">📡</button>
+  <button class="icon" id="zoom" type="button" title="Smart zoom: zooms in on tight clusters of pins around you, out in open areas (scrolling the map pauses it 10 s)" aria-pressed="false">🔍</button>
+  <button class="icon" id="disc" type="button" title="Auto-discover: stand on a pin for 3 seconds and it is marked discovered (Live mode)" aria-pressed="false">✓</button>
+  <button class="icon" id="filt" type="button" title="Choose markers" aria-expanded="false">☰</button>
+  <button class="icon" id="lock" type="button" title="Lock: clicks go through to the game (Ctrl+Alt+L to unlock)">🔒</button>
+  <button class="icon" id="hide" type="button" title="Hide (Ctrl+Alt+M to show)">–</button>
+  <button class="icon" id="quit" type="button" title="Close the overlay">✕</button>
+</div>
+<div class="row2">
+  <label class="sr" for="map" hidden>Map</label>
+  <select id="map" aria-label="Map"></select>
+  <select id="preset" aria-label="Markers"></select>
+  <input id="opacity" type="range" min="20" max="100" step="5" aria-label="Opacity">
+  <span class="op" id="opv"></span>
+</div>
+<div id="types" role="group" aria-label="Marker types"></div>
+<div class="mapwrap">
+  <div class="dragstrip pywebview-drag-region" title="Drag to move · Ctrl+Alt+H shows the bars"></div>
+  <div id="upd" role="status"><span id="updtext"></span><button type="button" class="go" id="updgo">Update</button><button type="button" id="updlater">Later</button></div>
+  <div id="lockbadge">Locked · Ctrl+Alt+L to unlock</div>
+  <div id="livehelp"><b>Live mode, first time only:</b> open the TH.GL app on your PC and copy its <b>Peer Code</b>. Here, click <b>Peer Link</b> in the map's top-right controls, paste the code, pick your app as <b>Me</b> and turn on <b>Live mode</b>. It remembers this. <button type="button" id="livehelpx">Got it</button></div>
+  <iframe id="frame" title="ArcheAge Chronicles Interactive Map" allowfullscreen></iframe>
+</div>
+<div class="foot">
+  <a href="https://archeagechronicles.th.gl/" id="credit">ArcheAge Chronicles Interactive Map</a> by The Hidden Gaming Lair
+  <span id="discst" title="Auto-discover: nearest uncollected pin. Stay within 20 m for 3 s to mark it" hidden></span>
+  <span id="ads" title="Ads and trackers blocked (Brave's ad-block engine with EasyList)" hidden></span>
+  <span class="keys">Ctrl+Alt+M hide · H bars · L lock · ↑↓ opacity</span>
+  <div class="grip" id="grip" title="Drag to resize"></div>
+</div>
+<script>
+const BASE = 'https://archeagechronicles.th.gl';
+const MAPS = ['Auroria','Old Temple','Throne of Hinnon','Wailing Snare','Gylden Archives',"Gon's Sandy Hollow",'Astral Vault','Starry Veil','Reedwind Cave'];
+const TYPES = [ // th.gl marker type ids, from their "Embed this map" dialog
+  ['raven-maumet',"Raeven's Coilstone"], ['tears-of-nui',"Nui's Tear"], ['nui-idol','Nui Statue'], ['nui-flame','Nui Flame'],
+  ['telegnosis',"Mir's Far Sight"], ['whispering-tomb',"Hersander's Tower"], ['hersander-statue',"Hersander's Statue"], ['perdita','Book of Perdita'],
+  ['record-stone',"Xil's Record Stone"], ['message-page','Record'], ['doodad-treasure-chest','Treasure Chest'], ['looting-object','Loot Object'],
+  ['doodad-gyldenlords-coin',"Gyldenlord's Coin"], ['destructible-object','Destructible Object'], ['doodad-broken-machine','Broken Machine'], ['doodad-bonfire','Bonfire']];
+const PRESETS = {
+  collect: ['Collectibles (Coilstones, Tears, Statues…)', ['raven-maumet','tears-of-nui','nui-idol','telegnosis','whispering-tomb','perdita','record-stone']],
+  coil:    ['Raeven\'s Coilstones only', ['raven-maumet']],
+  nui:     ['Nui Tears, Statues and Flames', ['tears-of-nui','nui-idol','nui-flame']],
+  loot:    ['Chests and loot', ['doodad-treasure-chest','looting-object','doodad-gyldenlords-coin']],
+  all:     ['Everything (map defaults)', null],
+  custom:  ['Custom (☰ to pick)', null]};
+const $ = id => document.getElementById(id);
+let S = {map:'Auroria', preset:'collect', types:[], opacity:.9, locked:false};
+const api = () => (window.pywebview && window.pywebview.api) || null;
+
+function currentTypes(){ return S.preset === 'custom' ? S.types : PRESETS[S.preset][1]; }
+function src(){
+  if (S.live) return `${BASE}/maps/${encodeURIComponent(S.map)}`; // full map: Peer Link live position
+  const t = currentTypes(), q = t && t.length ? '?types=' + t.join(',') : '';
+  return `${BASE}/embed/maps/${encodeURIComponent(S.map)}${q}`;
+}
+function load(){
+  document.body.classList.toggle('live', !!S.live);
+  document.body.classList.toggle('newlive', !!S.live && !S.liveSeen);
+  $('live').setAttribute('aria-pressed', !!S.live);
+  $('frame').src = src();
+  $('credit').href = `${BASE}/maps/${encodeURIComponent(S.map)}`;
+  $('types').querySelectorAll('input').forEach(i => i.checked = (currentTypes() || []).includes(i.value));
+}
+function persist(){ api() && api().save({map:S.map, preset:S.preset, types:S.types, live:!!S.live, liveSeen:!!S.liveSeen, autoZoom:!!S.autoZoom, autoDiscover:!!S.autoDiscover, barsHidden:!!S.barsHidden}); }
+
+// ---- talk to our helper script inside the map page (page_tools.js) ----
+function tellMap(){
+  const f = $('frame').contentWindow; if (!f) return;
+  f.postMessage({aao:'bars', hidden:!!S.barsHidden}, '*');
+  f.postMessage({aao:'autozoom', on:!!S.autoZoom}, '*');
+  f.postMessage({aao:'autodiscover', on:!!S.autoDiscover}, '*');
+}
+window.addEventListener('message', e => {
+  if (e.source !== $('frame').contentWindow || !e.data) return;
+  if (e.data.aao === 'hello') tellMap();
+  if (e.data.aao === 'discStatus') {
+    const d = e.data, el = $('discst'), name = (d.key || '').replace(/^doodad-/, '').replace(/-/g, ' ');
+    el.hidden = !S.autoDiscover || d.d == null;
+    el.textContent = d.held ? `✓ ${name} ${(d.held / 1000).toFixed(1)}/${d.need / 1000}s`
+      : `✓ ${name} ${d.d < 10 ? d.d.toFixed(1) : Math.round(d.d)} m`;
+  }
+});
+$('frame').addEventListener('load', tellMap);
+window.setBars = h => { S.barsHidden = !!h; document.body.classList.toggle('barshidden', S.barsHidden); tellMap(); };
+$('disc').onclick = () => { S.autoDiscover = !S.autoDiscover; if (!S.autoDiscover) $('discst').hidden = true; $('disc').setAttribute('aria-pressed', S.autoDiscover); tellMap(); persist(); };
+$('zoom').onclick = () => { S.autoZoom = !S.autoZoom; $('zoom').setAttribute('aria-pressed', S.autoZoom); tellMap(); persist(); };
+$('live').onclick = () => { S.live = !S.live; load(); persist(); };
+$('livehelpx').onclick = () => { S.liveSeen = true; document.body.classList.remove('newlive'); persist(); };
+
+$('map').innerHTML = MAPS.map(m => `<option>${m}</option>`).join('');
+$('preset').innerHTML = Object.entries(PRESETS).map(([k,[l]]) => `<option value="${k}">${l}</option>`).join('');
+$('types').innerHTML = TYPES.map(([id,l]) => `<label><input type="checkbox" value="${id}">${l}</label>`).join('');
+
+$('map').onchange = e => { S.map = e.target.value; load(); persist(); };
+$('preset').onchange = e => { S.preset = e.target.value; if (S.preset === 'custom' && !S.types.length) S.types = PRESETS.collect[1].slice(); load(); persist(); };
+$('types').onchange = () => {
+  S.types = [...$('types').querySelectorAll('input:checked')].map(i => i.value);
+  S.preset = 'custom'; $('preset').value = 'custom'; load(); persist();
+};
+$('filt').onclick = () => { const o = $('types').classList.toggle('open'); $('filt').setAttribute('aria-expanded', o); };
+$('opacity').oninput = e => { $('opv').textContent = e.target.value + '%'; api() && api().set_opacity(e.target.value / 100); };
+$('lock').onclick = () => api() && api().lock();
+$('hide').onclick = () => api() && api().hide();
+$('quit').onclick = () => api() && api().quit();
+$('credit').onclick = e => { e.preventDefault(); api() ? api().open_url($('credit').href) : open($('credit').href); };
+
+// resize from the corner grip (the window has no frame)
+$('grip').addEventListener('pointerdown', e => {
+  const g = $('grip'); g.setPointerCapture(e.pointerId);
+  const sx = e.screenX, sy = e.screenY, w0 = innerWidth, h0 = innerHeight; let pending = false;
+  const move = ev => { if (pending) return; pending = true;
+    requestAnimationFrame(() => { pending = false; api() && api().resize(w0 + ev.screenX - sx, h0 + ev.screenY - sy); }); };
+  const up = () => { g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); };
+  g.addEventListener('pointermove', move); g.addEventListener('pointerup', up);
+});
+
+// blocked-ads counter
+setInterval(async () => {
+  if (!api()) return; const n = await api().blocked();
+  $('ads').hidden = n < 0; $('ads').textContent = '🛡 ' + n;
+}, 3000);
+
+// update banner (Python calls this when a newer release is on GitHub)
+let updInfo = null;
+window.onUpdate = u => {
+  updInfo = u; const t = $('updtext');
+  $('updgo').hidden = u.state === 'downloading';
+  $('updgo').textContent = u.canSelf ? 'Update' : 'Download';
+  t.textContent = u.state === 'downloading' ? `Downloading ${u.version}… the overlay restarts by itself.`
+    : u.state === 'failed' ? `Update ${u.version} failed (${u.error}). Try again or get it from GitHub.`
+    : `Version ${u.version} is available (you have ${S.version || '?'}).`;
+  $('upd').classList.add('show');
+};
+$('updgo').onclick = () => { if (!updInfo) return; if (updInfo.state === 'failed' || !updInfo.canSelf) { api() ? api().open_url(updInfo.page) : open(updInfo.page); } else api() && api().update_now(); };
+$('updlater').onclick = () => $('upd').classList.remove('show');
+
+// called from Python when a hotkey changes lock or opacity
+window.onNative = st => {
+  S.locked = st.locked; document.body.classList.toggle('locked', st.locked);
+  $('opacity').value = Math.round(st.opacity * 100); $('opv').textContent = $('opacity').value + '%';
+};
+
+async function init(){
+  if (api()) { const s = await api().get_settings(); Object.assign(S, s); }
+  if (!PRESETS[S.preset]) S.preset = 'collect';
+  if (!MAPS.includes(S.map)) S.map = 'Auroria';
+  $('map').value = S.map; $('preset').value = S.preset;
+  onNative({locked: S.locked, opacity: S.opacity});
+  $('zoom').setAttribute('aria-pressed', !!S.autoZoom);
+  $('grip').title = `Drag to resize · version ${S.version || '?'}`;
+  $('disc').setAttribute('aria-pressed', !!S.autoDiscover);
+  document.body.classList.toggle('barshidden', !!S.barsHidden);
+  load();
+}
+if (window.pywebview) init(); else window.addEventListener('pywebviewready', init);
+setTimeout(() => { if (!$('frame').src) init(); }, 1500); // plain-browser preview
+</script>
+</body>
+</html>
