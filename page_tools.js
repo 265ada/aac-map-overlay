@@ -8,7 +8,9 @@
 // Every ~0.8 s it measures how far the nearest visible pins are from the centre
 // and zooms so those pins fill about a third of the window. Tight clusters
 // (gatherables, collectibles in one spot) zoom in hard; open areas zoom out.
-// Scrolling or dragging the map yourself pauses it for 10 seconds.
+// It only acts while your character is moving: standing still (looking around,
+// planning a route) never changes the zoom. Scrolling or dragging the map
+// yourself pauses it for 10 seconds, and the overlay turns it off while maximized.
 (() => {
   if (!/(^|\.)th\.gl$/.test(location.hostname) || window.__aaoTools) return;
   window.__aaoTools = true;
@@ -20,8 +22,10 @@
   const DEADBAND = 0.3;       // ignore smaller zoom changes (no jitter)
   const MAX_STEP = 0.75;      // most zoom change per tick (smooth)
   const PAUSE_MS = 10000;     // pause after you zoom or drag yourself
+  const MOVE_CM = 150;        // you count as moving after going 1.5 m...
+  const MOVING_MS = 2500;     // ...and stay "moving" this long after the last step
 
-  let autoOn = false, pausedUntil = 0, timer = 0, ctx = null;
+  let autoOn = false, pausedUntil = 0, timer = 0, ctx = null, anchor = null, movedAt = 0;
 
   // ---- top header -----------------------------------------------------------
   const barsCss = document.createElement('style');
@@ -64,6 +68,11 @@
   // ---- smart zoom -------------------------------------------------------------
   function tick() {
     if (!autoOn || Date.now() < pausedUntil || document.hidden) return;
+    // only while your character moves (live position from the TH.GL app)
+    const me = myPosition();
+    if (!me) return;
+    if (!anchor || Math.hypot(me.x - anchor.x, me.y - anchor.y) > MOVE_CM) { if (anchor) movedAt = Date.now(); anchor = {x: me.x, y: me.y}; }
+    if (Date.now() - movedAt > MOVING_MS) return;
     const m = findMap();
     if (!m) return;
     const w = m.webmap;
@@ -106,7 +115,7 @@
   // "auto discovered" list, so it shows and syncs like the app's own marks.
   const DWELL_MS = 3000;     // how long you must stay on it
   let RADIUS = 800;          // game units (cm): within 8 m counts as "on it"; set from the overlay's top bar
-  let discoverOn = false, discTimer = 0, peersRef = null, markFn = null, meId = '', meAt = 0, lastStatus = 0;
+  let discoverOn = false, discTimer = 0, peersRef = null, markFn = null, meId = '', meAt = 0, lastStatus = 0, peersSearchAt = 0;
   const near = new Map();    // pin id -> time you came within RADIUS
   const moved = new Set();   // pins that move (monsters etc.) are never marked
 
@@ -133,7 +142,8 @@
   }
 
   function myPosition() {
-    if (!peersRef || !Object.values(peersRef).some(v => v && v.player)) {
+    if ((!peersRef || !Object.values(peersRef).some(v => v && v.player)) && Date.now() - peersSearchAt > 2000) {
+      peersSearchAt = Date.now(); // searching the whole page is slow: at most every 2 s
       peersRef = walkFibers(s => {
         const c = s && s.current;
         return c && typeof c === 'object' && !Array.isArray(c) &&
@@ -206,7 +216,7 @@
   function setAuto(on) {
     autoOn = !!on;
     clearInterval(timer);
-    if (autoOn) { pausedUntil = 0; timer = setInterval(tick, 800); tick(); }
+    if (autoOn) { pausedUntil = 0; anchor = null; movedAt = 0; timer = setInterval(tick, 500); tick(); }
   }
 
   // ---- Peer Link backup: keep the Peer Code and "Me" in the overlay's own settings ----

@@ -47,7 +47,7 @@ Both sides remember the code, so you only do this once.
 | | |
 |---|---|
 | 📡 Live | TH.GL's full map with your live position (Peer Link, above) |
-| 🔍 Smart zoom | Zooms in hard on tight clusters of pins around you and out in open areas. Scrolling or dragging the map yourself pauses it for 10 seconds |
+| 🔍 Smart zoom | Zooms in hard on tight clusters of pins around you and out in open areas, only while your character is moving. Standing still or a maximized overlay never changes the zoom, so you can look around and plan a route. Scrolling or dragging the map yourself pauses it for 10 seconds |
 | ✓ Auto-discover | Stand within range of a pin (8 m by default; pick 5–30 m with the **✓ 8 m** menu in the top bar) for 3 seconds and it's marked auto-discovered, the same way TH.GL's app marks it. The footer shows the nearest unmarked pin and a countdown. Pins that move (monsters), boss spawns and quest givers are skipped. Only pins your filters show are checked, so turn on Ores, Plants and Trees to have gathering nodes marked |
 | 🛡 Ad blocking | Brave's ad-block engine with EasyList and EasyPrivacy, refreshed weekly. The footer counts what was blocked. Turn it off with `"adblock": false` in settings.json |
 | Map and Markers menus | Auroria or any of the 8 dungeon maps, plus marker presets (normal mode) |

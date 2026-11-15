@@ -124,7 +124,7 @@ function persist(){ api() && api().save({map:S.map, preset:S.preset, types:S.typ
 function tellMap(){
   const f = $('frame').contentWindow; if (!f) return;
   f.postMessage({aao:'bars', hidden:!!(S.barsHidden || S.locked)}, '*'); // locked = map only
-  f.postMessage({aao:'autozoom', on:!!S.autoZoom}, '*');
+  f.postMessage({aao:'autozoom', on:!!S.autoZoom && !S.maximized}, '*'); // never while maximized (planning)
   f.postMessage({aao:'autodiscover', on:!!S.autoDiscover, radius:S.discRadius || 8}, '*');
   if (S.peerCode) f.postMessage({aao:'peerRestore', code:S.peerCode, me:S.peerMe || ''}, '*');
 }
@@ -168,6 +168,7 @@ $('hide').onclick = () => api() && api().hide();
 $('max').onclick = async () => {
   if (!api()) return;
   const on = await api().toggle_max();
+  S.maximized = !!on; tellMap();
   $('max').setAttribute('aria-pressed', !!on);
   $('max').textContent = on ? '🗗' : '⛶';
   $('max').title = on ? 'Back to the previous size' : 'Maximize to this monitor (click again to go back)';
