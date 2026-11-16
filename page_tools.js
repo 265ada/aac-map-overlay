@@ -269,6 +269,18 @@
     if (d.aao === 'peerRestore' && !restoreAsked) { restoreAsked = true; restorePeer(d.code, d.me); }
   });
   let restoreAsked = false;
+
+  // ---- start with TH.GL's Filters panel closed ------------------------------------
+  (function closeFilters(tries) {
+    let open = null;
+    try {
+      const st = JSON.parse(localStorage.getItem('settings-storage')).state;
+      open = (st.profiles.find(p => p.id === st.currentProfileId) || st.profiles[0]).settings.showFilters;
+    } catch (e) { /* settings not saved yet */ }
+    const store = document.querySelector('canvas') && walkFibers(s => s && typeof s === 'object' && typeof s.toggleShowFilters === 'function' ? s : null);
+    if (store) { if (store.showFilters ?? open) store.toggleShowFilters(); return; }
+    if (tries < 30) setTimeout(() => closeFilters(tries + 1), 1000);
+  })(0);
   // ask the overlay for the current settings once this page is up
   if (window.parent !== window) window.parent.postMessage({aao: 'hello'}, '*');
 })();

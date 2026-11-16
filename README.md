@@ -61,11 +61,11 @@ Both sides remember the code, so you only do this once.
 | | |
 |---|---|
 | **Ctrl+Alt+M** | Show / hide the overlay |
-| **Alt+L** | Lock / unlock. Locking hides every bar (map only, clicks go to the game); unlocking brings the bars back |
+| **Alt+L** | Lock / unlock. Locking hides every bar (map only, clicks go to the game); unlocking brings the bars back. The overlay reopens locked or unlocked, the way you left it |
 | **Ctrl+Alt+H** | Hide / show the top bars. While they're hidden, drag the thin strip at the top edge to move the window |
 | **Ctrl+Alt+↑ / ↓** | More / less opaque |
 
-Drag the title to move the window and the corner grip to resize it. Settings (map, markers, opacity,
+TH.GL's Filters panel starts closed each time the overlay opens. Drag the title to move the window and the corner grip to resize it. Settings (map, markers, opacity,
 position, size and the toggles above) are saved in `%APPDATA%\AACMapOverlay\settings.json`.
 
 ## Is it safe with the game's anti-cheat?

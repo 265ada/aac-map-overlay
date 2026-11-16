@@ -36,7 +36,7 @@ CFG_DIR = pathlib.Path(os.environ.get("APPDATA", HERE)) / "AACMapOverlay"
 CFG = CFG_DIR / "settings.json"
 TITLE = "AAC Map Overlay"
 PORT = 47853  # fixed, so the map's saved Peer Link settings survive restarts
-DEFAULTS = {"map": "Auroria", "preset": "collect", "types": [], "live": False, "liveSeen": False, "adblock": True, "autoZoom": True, "autoDiscover": True, "discRadius": 8, "autoUpdate": True, "barsHidden": False, "opacity": 0.9,
+DEFAULTS = {"map": "Auroria", "preset": "collect", "types": [], "live": False, "liveSeen": False, "adblock": True, "autoZoom": True, "autoDiscover": True, "discRadius": 8, "autoUpdate": True, "barsHidden": False, "locked": False, "opacity": 0.9,
             "x": 40, "y": 120, "w": 460, "h": 560}
 
 user32 = ctypes.windll.user32
@@ -74,7 +74,7 @@ def load_settings():
 class Overlay:
     def __init__(self):
         self.s = load_settings()
-        self.locked = False
+        self.locked = bool(self.s.get("locked"))  # come back locked if it was locked
         self.visible = True
         self.window = None
         self.adblock = AdBlocker(CFG_DIR) if self.s.get("adblock", True) else None
@@ -114,6 +114,8 @@ class Overlay:
     # ---- actions shared by hotkeys and the UI ----------------------------
     def set_lock(self, on):
         self.locked = bool(on)
+        self.s["locked"] = self.locked
+        self.save()
         self.apply_style()
         self.tell_ui()
 
