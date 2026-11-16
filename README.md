@@ -53,7 +53,7 @@ Both sides remember the code, so you only do this once.
 | 📊 Progress | Collected / total for every collectible and resource type the map shows, plus this session: time played, distance walked and what you marked |
 | 🧭 Profiles | **Gathering** (resources on, 12 m range, closer zoom, pointer to the nearest resource) and **Exploring** (collectibles on, 8 m range, wider zoom, pointer to the nearest collectible). **Manual** puts your own filters, pointer and range back. **Ctrl+Alt+P** cycles them |
 | ⭕ Round map | A round minimap that turns with your facing; the corners are see-through |
-| ⚙ Settings | Sound when an unmarked pin comes in range; hide the overlay when another program is in front of the game; low-power drawing while you stand still (all on by default) |
+| ⚙ Settings | Sound when an unmarked pin comes in range; show the overlay only while the game is running and in front (Ctrl+Alt+M shows it anyway, for example to look at the map without the game); low-power drawing while you stand still (all on by default) |
 | 🛡 Ad blocking | Brave's ad-block engine with EasyList and EasyPrivacy, refreshed weekly. The footer counts what was blocked. Turn it off with `"adblock": false` in settings.json |
 | Map and Markers menus | Auroria or any of the 8 dungeon maps, plus marker presets (normal mode) |
 | ☰ | Pick marker types one by one (normal mode) |
@@ -65,7 +65,7 @@ Both sides remember the code, so you only do this once.
 
 | | |
 |---|---|
-| **Ctrl+Alt+M** | Show / hide the overlay |
+| **Ctrl+Alt+M** | Show / hide the overlay. While the game isn't in front, it shows the overlay anyway until the game is back |
 | **Alt+L** | Lock / unlock. Locking hides every bar (map only, clicks go to the game); unlocking brings the bars back. The overlay reopens locked or unlocked, the way you left it |
 | **Ctrl+Alt+H** | Hide / show the top bars. While they're hidden, drag the thin strip at the top edge to move the window |
 | **Ctrl+Alt+P** | Next activity profile (Manual → Gathering → Exploring) |

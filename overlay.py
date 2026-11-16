@@ -51,7 +51,6 @@ WS_EX_LAYERED, WS_EX_TRANSPARENT, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE = 0x80000, 
 LWA_ALPHA, LWA_COLORKEY = 0x2, 0x1
 ROUND_KEY = 0x00030201  # COLORREF of #010203: the page paints this around the round map; Windows makes it see-through
 GAME_EXE = "archeagechronicles.exe"
-ALLOWED_FOREGROUND = {GAME_EXE, "aacmapoverlay.exe", "python.exe", "pythonw.exe", "thglapp.exe", "msedgewebview2.exe"}
 MOD_ALT, MOD_CONTROL, MOD_NOREPEAT = 0x1, 0x2, 0x4000
 WM_HOTKEY = 0x0312
 class RECT(ctypes.Structure):
@@ -86,6 +85,7 @@ class Overlay:
         self.update = None  # newer release info, once found
         self.max_from = None  # window rect (screen pixels) before maximizing
         self.auto_hidden = False
+        self.force_show = False
 
     # ---- native window helpers -------------------------------------------
     def hwnd(self):
@@ -136,58 +136,61 @@ class Overlay:
         self.tell_ui()
 
     def toggle_visible(self):
+        if self.auto_hidden and self.visible:
+            # Ctrl+Alt+M while auto-hidden: show anyway (map without the game) until the game is back in front
+            self.force_show = True
+            self.auto_hidden = False
+            self.window.show()
+            self.apply_style()
+            return
         self.visible = not self.visible
         self.auto_hidden = False
+        self.force_show = False
         (self.window.show if self.visible else self.window.hide)()
         if self.visible:
             self.apply_style()
 
-    # ---- auto-hide when the game isn't the active window ------------------
-    def foreground_exe(self):
+    # ---- only show while the game is the active window ---------------------
+    def foreground(self):
+        """(pid, exe name) of the program in front."""
         h = user32.GetForegroundWindow()
         pid = wt.DWORD()
         user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
         k32 = ctypes.windll.kernel32
         hp = k32.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
         if not hp:
-            return ""
+            return pid.value, ""
         try:
             buf = ctypes.create_unicode_buffer(520)
             size = wt.DWORD(len(buf))
-            if k32.QueryFullProcessImageNameW(hp, 0, buf, ctypes.byref(size)):
-                return os.path.basename(buf.value).lower()
-            return ""
+            ok = k32.QueryFullProcessImageNameW(hp, 0, buf, ctypes.byref(size))
+            return pid.value, (os.path.basename(buf.value).lower() if ok else "")
         finally:
             k32.CloseHandle(hp)
 
-    def game_running(self):
-        import subprocess
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq ArcheAgeChronicles.exe", "/NH"], capture_output=True,
-                             text=True, creationflags=0x08000000).stdout.lower()  # CREATE_NO_WINDOW: no console flash
-        return GAME_EXE in out
-
     def autohide_loop(self):
-        """Hide while another program is in front of the game; show again when the game is back."""
-        game_seen_at, running = 0.0, False
+        """Show the overlay only while the game is in front (or you're using the overlay itself).
+        With the game closed or another program in front, it stays hidden. Ctrl+Alt+M shows it anyway."""
+        me = os.getpid()
         while True:
-            time.sleep(0.4)
+            time.sleep(0.3)
             try:
-                if time.time() - game_seen_at > 10:  # checking for the game is slow: every 10 s
-                    running, game_seen_at = self.game_running(), time.time()
-                if not self.s.get("autoHide") or not running or not self.visible:
+                if not self.s.get("autoHide") or not self.visible:
                     if self.auto_hidden and self.visible:
                         self.auto_hidden = False
                         self.window.show()
                         self.apply_style()
                     continue
-                exe = self.foreground_exe()
-                if not exe:
-                    continue
-                away = exe not in ALLOWED_FOREGROUND
-                if away and not self.auto_hidden:
+                pid, exe = self.foreground()
+                game_front = exe == GAME_EXE
+                if game_front:
+                    self.force_show = False  # back to normal once the game is in front again
+                ours = pid == me or exe in ("aacmapoverlay.exe", "msedgewebview2.exe")
+                want = game_front or ours or self.force_show
+                if not want and not self.auto_hidden:
                     self.auto_hidden = True
                     self.window.hide()
-                elif not away and self.auto_hidden:
+                elif want and self.auto_hidden:
                     self.auto_hidden = False
                     self.window.show()
                     self.apply_style()
