@@ -10,6 +10,7 @@ Hotkeys (work while the game has focus):
   Ctrl+Alt+Up     more opaque
   Ctrl+Alt+Down   more transparent
   Ctrl+Alt+H      hide / show the top bars
+  Ctrl+Alt+P      next activity profile (Manual, Gathering, Exploring)
 
 The overlay never reads or touches the game: it is only a window on top.
 Live position comes from TH.GL's own app through Peer Link.
@@ -36,7 +37,8 @@ CFG_DIR = pathlib.Path(os.environ.get("APPDATA", HERE)) / "AACMapOverlay"
 CFG = CFG_DIR / "settings.json"
 TITLE = "AAC Map Overlay"
 PORT = 47853  # fixed, so the map's saved Peer Link settings survive restarts
-DEFAULTS = {"map": "Auroria", "preset": "collect", "types": [], "live": False, "liveSeen": False, "adblock": True, "autoZoom": True, "autoDiscover": True, "discRadius": 8, "autoUpdate": True, "barsHidden": False, "locked": False, "opacity": 0.9,
+DEFAULTS = {"map": "Auroria", "preset": "collect", "types": [], "live": False, "liveSeen": False, "adblock": True, "autoZoom": True, "autoDiscover": True, "discRadius": 8, "autoUpdate": True, "barsHidden": False, "locked": False, "profile": "manual", "target": "", "sound": True,
+            "autoHide": True, "lowPower": True, "round": False, "showProgress": False, "manualFilters": None, "opacity": 0.9,
             "x": 40, "y": 120, "w": 460, "h": 560}
 
 user32 = ctypes.windll.user32
@@ -46,7 +48,10 @@ user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
 user32.SetWindowLongPtrW.argtypes = [wt.HWND, ctypes.c_int, ctypes.c_ssize_t]
 GWL_EXSTYLE = -20
 WS_EX_LAYERED, WS_EX_TRANSPARENT, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE = 0x80000, 0x20, 0x80, 0x08000000
-LWA_ALPHA = 0x2
+LWA_ALPHA, LWA_COLORKEY = 0x2, 0x1
+ROUND_KEY = 0x00030201  # COLORREF of #010203: the page paints this around the round map; Windows makes it see-through
+GAME_EXE = "archeagechronicles.exe"
+ALLOWED_FOREGROUND = {GAME_EXE, "aacmapoverlay.exe", "python.exe", "pythonw.exe", "thglapp.exe", "msedgewebview2.exe"}
 MOD_ALT, MOD_CONTROL, MOD_NOREPEAT = 0x1, 0x2, 0x4000
 WM_HOTKEY = 0x0312
 class RECT(ctypes.Structure):
@@ -61,7 +66,7 @@ user32.MonitorFromWindow.restype = wt.HMONITOR
 user32.MonitorFromWindow.argtypes = [wt.HWND, wt.DWORD]
 MONITOR_DEFAULTTONEAREST = 2
 SWP_NOZORDER, SWP_NOACTIVATE = 0x0004, 0x0010
-VK = {"M": 0x4D, "L": 0x4C, "H": 0x48, "UP": 0x26, "DOWN": 0x28}
+VK = {"M": 0x4D, "L": 0x4C, "H": 0x48, "P": 0x50, "UP": 0x26, "DOWN": 0x28}
 
 
 def load_settings():
@@ -80,6 +85,7 @@ class Overlay:
         self.adblock = AdBlocker(CFG_DIR) if self.s.get("adblock", True) else None
         self.update = None  # newer release info, once found
         self.max_from = None  # window rect (screen pixels) before maximizing
+        self.auto_hidden = False
 
     # ---- native window helpers -------------------------------------------
     def hwnd(self):
@@ -98,7 +104,11 @@ class Overlay:
         else:
             ex &= ~(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE)
         user32.SetWindowLongPtrW(h, GWL_EXSTYLE, ex)
-        user32.SetLayeredWindowAttributes(h, 0, int(255 * max(0.2, min(1.0, self.s["opacity"]))), LWA_ALPHA)
+        alpha = int(255 * max(0.2, min(1.0, self.s["opacity"])))
+        if self.s.get("round"):
+            user32.SetLayeredWindowAttributes(h, ROUND_KEY, alpha, LWA_ALPHA | LWA_COLORKEY)
+        else:
+            user32.SetLayeredWindowAttributes(h, 0, alpha, LWA_ALPHA)
 
     def save(self):
         try:
@@ -127,9 +137,62 @@ class Overlay:
 
     def toggle_visible(self):
         self.visible = not self.visible
+        self.auto_hidden = False
         (self.window.show if self.visible else self.window.hide)()
         if self.visible:
             self.apply_style()
+
+    # ---- auto-hide when the game isn't the active window ------------------
+    def foreground_exe(self):
+        h = user32.GetForegroundWindow()
+        pid = wt.DWORD()
+        user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
+        k32 = ctypes.windll.kernel32
+        hp = k32.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not hp:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(520)
+            size = wt.DWORD(len(buf))
+            if k32.QueryFullProcessImageNameW(hp, 0, buf, ctypes.byref(size)):
+                return os.path.basename(buf.value).lower()
+            return ""
+        finally:
+            k32.CloseHandle(hp)
+
+    def game_running(self):
+        import subprocess
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq ArcheAgeChronicles.exe", "/NH"], capture_output=True,
+                             text=True, creationflags=0x08000000).stdout.lower()  # CREATE_NO_WINDOW: no console flash
+        return GAME_EXE in out
+
+    def autohide_loop(self):
+        """Hide while another program is in front of the game; show again when the game is back."""
+        game_seen_at, running = 0.0, False
+        while True:
+            time.sleep(0.4)
+            try:
+                if time.time() - game_seen_at > 10:  # checking for the game is slow: every 10 s
+                    running, game_seen_at = self.game_running(), time.time()
+                if not self.s.get("autoHide") or not running or not self.visible:
+                    if self.auto_hidden and self.visible:
+                        self.auto_hidden = False
+                        self.window.show()
+                        self.apply_style()
+                    continue
+                exe = self.foreground_exe()
+                if not exe:
+                    continue
+                away = exe not in ALLOWED_FOREGROUND
+                if away and not self.auto_hidden:
+                    self.auto_hidden = True
+                    self.window.hide()
+                elif not away and self.auto_hidden:
+                    self.auto_hidden = False
+                    self.window.show()
+                    self.apply_style()
+            except Exception as e:
+                print("auto-hide error:", e)
 
     def toggle_bars(self):
         self.s["barsHidden"] = not self.s.get("barsHidden")
@@ -143,7 +206,8 @@ class Overlay:
         keys = {1: ("M", self.toggle_visible), 2: ("L", lambda: self.set_lock(not self.locked), MOD_ALT),
                 3: ("UP", lambda: self.set_opacity(self.s["opacity"] + 0.1)),
                 4: ("DOWN", lambda: self.set_opacity(self.s["opacity"] - 0.1)),
-                5: ("H", self.toggle_bars)}
+                5: ("H", self.toggle_bars),
+                6: ("P", lambda: self.window.evaluate_js("window.cycleProfile && cycleProfile()"))}
         for i, (k, _, *mods) in keys.items():
             mod = mods[0] if mods else ctrl_alt
             if not user32.RegisterHotKey(None, i, mod | MOD_NOREPEAT, VK[k]):
@@ -195,6 +259,7 @@ class Overlay:
         threading.Thread(target=self.hotkeys, daemon=True).start()
         threading.Thread(target=self.hook_webview, daemon=True).start()
         threading.Thread(target=self.update_loop, daemon=True).start()
+        threading.Thread(target=self.autohide_loop, daemon=True).start()
 
     # ---- updates (GitHub Releases) -----------------------------------------
     def update_loop(self):
@@ -283,7 +348,9 @@ class Api:
         threading.Thread(target=self._ov.install_update, daemon=True).start()
 
     def save(self, patch):
-        self._ov.s.update({k: v for k, v in patch.items() if k in ("map", "preset", "types", "live", "liveSeen", "autoZoom", "autoDiscover", "discRadius", "autoUpdate", "barsHidden", "peerCode", "peerMe")})
+        self._ov.s.update({k: v for k, v in patch.items() if k in ("map", "preset", "types", "live", "liveSeen", "autoZoom", "autoDiscover", "discRadius", "autoUpdate", "barsHidden", "peerCode", "peerMe",
+                                                                            "profile", "target", "sound", "autoHide", "lowPower", "round",
+                                                                            "showProgress", "manualFilters", "manualTarget", "manualRadius")})
         self._ov.save()
 
     def set_opacity(self, v):
@@ -294,6 +361,11 @@ class Api:
 
     def toggle_max(self):
         return self._ov.toggle_max()
+
+    def set_round(self, on):
+        self._ov.s["round"] = bool(on)
+        self._ov.save()
+        self._ov.apply_style()
 
     def resize(self, w, h):
         self._ov.window.resize(max(300, int(w)), max(260, int(h)))

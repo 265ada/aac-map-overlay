@@ -48,6 +48,27 @@ body.barshidden .bar,body.barshidden .row2,body.barshidden #types{display:none}
 .dragstrip{display:none;position:absolute;top:0;left:0;right:0;height:8px;z-index:4;cursor:move}
 body.barshidden .dragstrip{display:block}
 body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
+#prog[aria-pressed="true"],#round[aria-pressed="true"],#prefsbtn[aria-expanded="true"]{background:var(--accent);border-color:var(--accent);color:#1b1209}
+.row2 select#profile,.row2 select#target{flex:1 1 130px}
+#prefs{display:none;flex-direction:column;gap:4px;padding:8px;background:var(--bar);border-bottom:1px solid var(--line)}
+#prefs.open{display:flex}
+#prefs label{display:flex;gap:6px;align-items:center;cursor:pointer}
+#prefs input{accent-color:var(--accent)}
+body.locked #prefs,body.barshidden #prefs{display:none}
+#ptr{display:none;position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:3;align-items:center;gap:6px;background:rgba(20,23,28,.88);border:1px solid var(--line);border-radius:14px;padding:3px 10px 3px 6px;font-size:12px;white-space:nowrap;pointer-events:none}
+#ptr.show{display:flex}
+#ptr .arrow{display:inline-block;width:18px;height:18px;line-height:18px;text-align:center;color:var(--accent);font-size:15px;transition:transform .3s}
+#ptr.none .arrow{color:var(--muted)}
+#progbox{display:none;position:absolute;left:8px;top:8px;z-index:3;max-height:calc(100% - 50px);overflow:auto;background:rgba(20,23,28,.92);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;min-width:190px}
+#progbox.show{display:block}
+#progbox h4{margin:0 0 4px;font-size:12px;color:var(--muted);font-weight:600}
+#progbox .row{display:flex;gap:8px;align-items:center;margin:2px 0}
+#progbox .row span:first-child{flex:1}
+#progbox .bar{flex:none;width:60px;height:5px;background:#323946;border-radius:3px;overflow:hidden;padding:0;border:0}
+#progbox .bar i{display:block;height:100%;background:var(--ok)}
+#progbox .sess{margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+body.round .mapwrap{background:#010203}
+body.round iframe{clip-path:circle(closest-side at 50% 50%)}
 </style>
 </head>
 <body>
@@ -56,6 +77,9 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
   <button class="icon" id="live" type="button" title="Live: TH.GL's full map with your live position (needs the TH.GL app + Peer Link)" aria-pressed="false">📡</button>
   <button class="icon" id="zoom" type="button" title="Smart zoom: zooms in on tight clusters of pins around you, out in open areas (scrolling the map pauses it 10 s)" aria-pressed="false">🔍</button>
   <button class="icon" id="disc" type="button" title="Auto-discover: stand on a pin for 3 seconds and it is marked discovered (Live mode)" aria-pressed="false">✓</button>
+  <button class="icon" id="prog" type="button" title="Progress: collected / total per type, and this session" aria-pressed="false">📊</button>
+  <button class="icon" id="round" type="button" title="Round minimap that turns with your facing" aria-pressed="false">⭕</button>
+  <button class="icon" id="prefsbtn" type="button" title="Settings" aria-expanded="false">⚙</button>
   <button class="icon" id="filt" type="button" title="Choose markers" aria-expanded="false">☰</button>
   <button class="icon" id="lock" type="button" title="Lock: clicks go through to the game (Alt+L to unlock)">🔒</button>
   <button class="icon" id="max" type="button" title="Maximize to this monitor (click again to go back)" aria-pressed="false">⛶</button>
@@ -66,15 +90,24 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
   <label class="sr" for="map" hidden>Map</label>
   <select id="map" aria-label="Map"></select>
   <select id="preset" aria-label="Markers"></select>
+  <select id="profile" aria-label="Activity profile" title="Activity profile (Ctrl+Alt+P cycles): switches filters, range, zoom and pointer together"></select>
+  <select id="target" aria-label="Point at" title="Pointer: arrow and distance to the nearest unmarked pin of this type"></select>
   <select id="radius" aria-label="Auto-discover range" title="Auto-discover range: how close you must stay to a pin for 3 seconds"></select>
   <input id="opacity" type="range" min="20" max="100" step="5" aria-label="Opacity">
   <span class="op" id="opv"></span>
 </div>
 <div id="types" role="group" aria-label="Marker types"></div>
+<div id="prefs" role="group" aria-label="Settings">
+  <label><input type="checkbox" id="pref-sound"> Sound when an unmarked pin is in range</label>
+  <label><input type="checkbox" id="pref-autohide"> Hide the overlay when the game isn't the active window</label>
+  <label><input type="checkbox" id="pref-lowpower"> Low-power: draw the map slower while you stand still</label>
+</div>
 <div class="mapwrap">
   <div class="dragstrip pywebview-drag-region" title="Drag to move · Ctrl+Alt+H shows the bars"></div>
   <div id="upd" role="status"><span id="updtext"></span><button type="button" class="go" id="updgo">Update</button><button type="button" id="updlater">Later</button></div>
   <div id="lockbadge">Locked · Alt+L to unlock</div>
+  <div id="ptr" role="status"><span class="arrow" id="ptrarrow">➤</span><span id="ptrtext"></span></div>
+  <div id="progbox" role="region" aria-label="Progress"></div>
   <div id="livehelp"><b>Live mode, first time only:</b> open the TH.GL app on your PC and copy its <b>Peer Code</b>. Here, click <b>Peer Link</b> in the map's top-right controls, paste the code, pick your app as <b>Me</b> and turn on <b>Live mode</b>. It remembers this. <button type="button" id="livehelpx">Got it</button></div>
   <iframe id="frame" title="ArcheAge Chronicles Interactive Map" allowfullscreen></iframe>
 </div>
@@ -82,7 +115,7 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
   <a href="https://archeagechronicles.th.gl/" id="credit">ArcheAge Chronicles Interactive Map</a> by The Hidden Gaming Lair
   <span id="discst" title="Auto-discover: nearest uncollected pin. Stay within range for 3 s to mark it" hidden></span>
   <span id="ads" title="Ads and trackers blocked (Brave's ad-block engine with EasyList)" hidden></span>
-  <span class="keys">Alt+L lock · Ctrl+Alt+ M hide · H bars · ↑↓ opacity</span>
+  <span class="keys">Alt+L lock · Ctrl+Alt+ M hide · H bars · P profile · ↑↓ opacity</span>
   <div class="grip" id="grip" title="Drag to resize"></div>
 </div>
 <script>
@@ -100,6 +133,31 @@ const PRESETS = {
   loot:    ['Chests and loot', ['doodad-treasure-chest','looting-object','doodad-gyldenlords-coin']],
   all:     ['Everything (map defaults)', null],
   custom:  ['Custom (☰ to pick)', null]};
+const GATHER = {
+  ore: ['gathering-rock', 'gathering-dark-vein', 'gathering-archeum', 'gathering-suspicious-rock'],
+  plant: ['gathering-wildfiber-herb', 'gathering-wildfiber-bloom', 'gathering-lily', 'gathering-bluebell', 'gathering-spireflower', 'gathering-sundaisy', 'gathering-yarrow', 'gathering-roseberry-bush'],
+  tree: ['gathering-young-tree', 'gathering-mature-tree'],
+  sea: ['gathering-clam', 'gathering-sea-mushroom-coral']};
+const ALL_GATHER = [...GATHER.ore, ...GATHER.plant, ...GATHER.tree, ...GATHER.sea];
+const COLLECT = ['raven-maumet', 'tears-of-nui', 'nui-idol', 'nui-flame', 'telegnosis', 'whispering-tomb', 'hersander-statue', 'perdita', 'record-stone', 'message-page', 'doodad-gyldenlords-coin', 'doodad-treasure-chest'];
+const EXPLORE = ['doodad-broken-machine', 'doodad-treasure-chest', 'destructible-object', 'doodad-bonfire', 'doodad-gyldenlords-coin', 'nui-idol', 'looting-object', 'message-page', 'tears-of-nui', 'nui-flame', 'raven-maumet', 'record-stone', 'whispering-tomb', 'telegnosis', 'perdita', 'hersander-statue'];
+const NAMES = Object.fromEntries([...TYPES_LIST(), ...ALL_GATHER.map(k => [k, k.replace(/^gathering-/, '').replace(/-/g, ' ').replace(/^./, c => c.toUpperCase())])]);
+function TYPES_LIST() { return [
+  ['raven-maumet', "Raeven's Coilstone"], ['tears-of-nui', "Nui's Tear"], ['nui-idol', 'Nui Statue'], ['nui-flame', 'Nui Flame'],
+  ['telegnosis', "Mir's Far Sight"], ['whispering-tomb', "Hersander's Tower"], ['hersander-statue', "Hersander's Statue"], ['perdita', 'Book of Perdita'],
+  ['record-stone', "Xil's Record Stone"], ['message-page', 'Record'], ['doodad-treasure-chest', 'Treasure Chest'], ['looting-object', 'Loot Object'],
+  ['doodad-gyldenlords-coin', "Gyldenlord's Coin"], ['destructible-object', 'Destructible Object'], ['doodad-broken-machine', 'Broken Machine'], ['doodad-bonfire', 'Bonfire']]; }
+const nameOf = k => NAMES[k] || (k || '').replace(/^doodad-/, '').replace(/-/g, ' ');
+const TARGETS = [
+  ['', '🎯 No pointer', []],
+  ['collect', '🎯 Nearest collectible', COLLECT],
+  ['gather', '🎯 Nearest resource', ALL_GATHER],
+  ['ore', '🎯 Ore & rocks', GATHER.ore], ['plant', '🎯 Plants', GATHER.plant], ['tree', '🎯 Trees', GATHER.tree], ['sea', '🎯 Sea resources', GATHER.sea],
+  ...COLLECT.map(k => [k, '🎯 ' + nameOf(k), [k]])];
+const PROFILES = {
+  manual:  {label: '🧭 Manual'},
+  gather:  {label: '🧭 Gathering', filters: ALL_GATHER, radius: 12, bias: 0.5, target: 'gather'},
+  explore: {label: '🧭 Exploring', filters: EXPLORE, radius: 8, bias: -0.75, target: 'collect'}};
 const $ = id => document.getElementById(id);
 let S = {map:'Auroria', preset:'collect', types:[], opacity:.9, locked:false};
 const api = () => (window.pywebview && window.pywebview.api) || null;
@@ -118,13 +176,20 @@ function load(){
   $('credit').href = `${BASE}/maps/${encodeURIComponent(S.map)}`;
   $('types').querySelectorAll('input').forEach(i => i.checked = (currentTypes() || []).includes(i.value));
 }
-function persist(){ api() && api().save({map:S.map, preset:S.preset, types:S.types, live:!!S.live, liveSeen:!!S.liveSeen, autoZoom:!!S.autoZoom, autoDiscover:!!S.autoDiscover, discRadius:S.discRadius || 8, barsHidden:!!S.barsHidden}); }
+function persist(){ api() && api().save({map:S.map, preset:S.preset, types:S.types, live:!!S.live, liveSeen:!!S.liveSeen, autoZoom:!!S.autoZoom, autoDiscover:!!S.autoDiscover, discRadius:S.discRadius || 8, barsHidden:!!S.barsHidden,
+  profile:S.profile || 'manual', target:S.target || '', sound:!!S.sound, autoHide:!!S.autoHide, lowPower:!!S.lowPower,
+  round:!!S.round, showProgress:!!S.showProgress, manualFilters:S.manualFilters || null,
+  manualTarget:S.manualTarget || '', manualRadius:S.manualRadius || 8}); }
 
 // ---- talk to our helper script inside the map page (page_tools.js) ----
 function tellMap(){
   const f = $('frame').contentWindow; if (!f) return;
   f.postMessage({aao:'bars', hidden:!!(S.barsHidden || S.locked)}, '*'); // locked = map only
-  f.postMessage({aao:'autozoom', on:!!S.autoZoom && !S.maximized}, '*'); // never while maximized (planning)
+  f.postMessage({aao:'autozoom', on:!!S.autoZoom && !S.maximized, bias:(PROFILES[S.profile] || {}).bias || 0}, '*'); // never while maximized (planning)
+  const t = TARGETS.find(x => x[0] === (S.target || '')) || TARGETS[0];
+  f.postMessage({aao:'target', keys:t[2], label:t[1].replace(/^🎯 /, '')}, '*');
+  f.postMessage({aao:'rotate', on:!!S.round}, '*');
+  f.postMessage({aao:'lowpower', on:!!S.lowPower}, '*');
   f.postMessage({aao:'autodiscover', on:!!S.autoDiscover, radius:S.discRadius || 8}, '*');
   if (S.peerCode) f.postMessage({aao:'peerRestore', code:S.peerCode, me:S.peerMe || ''}, '*');
 }
@@ -135,14 +200,120 @@ window.addEventListener('message', e => {
     S.peerCode = e.data.code; S.peerMe = e.data.me || ''; // backup of the Peer Link setup
     api() && api().save({peerCode: S.peerCode, peerMe: S.peerMe});
   }
+  if (e.data.aao === 'target') showTarget(e.data);
+  if (e.data.aao === 'progress') { lastCounts = e.data.counts || {}; if (S.showProgress) renderProgress(); }
+  if (e.data.aao === 'walked') { SESSION.walked += e.data.m || 0; }
+  if (e.data.aao === 'marked') { for (const k of e.data.keys || []) SESSION.marked[k] = (SESSION.marked[k] || 0) + 1; if (S.showProgress) renderProgress(); }
+  if (e.data.aao === 'filters' && filterWaiter) { const w = filterWaiter; filterWaiter = null; w(e.data.keys); }
   if (e.data.aao === 'discStatus') {
-    const d = e.data, el = $('discst'), name = (d.key || '').replace(/^doodad-/, '').replace(/-/g, ' ');
+    const d = e.data, el = $('discst'), name = nameOf(d.key);
+    if (d.held > 0 && d.id && d.id !== lastBeepId) { lastBeepId = d.id; if (S.sound) beep(); }
     el.hidden = !S.autoDiscover || d.d == null;
     el.textContent = d.held ? `✓ ${name} ${(d.held / 1000).toFixed(1)}/${d.need / 1000}s`
       : `✓ ${name} ${d.d < 10 ? d.d.toFixed(1) : Math.round(d.d)} m`;
   }
 });
 $('frame').addEventListener('load', tellMap);
+
+// ---- pointer to the nearest target ------------------------------------------------------
+function showTarget(d) {
+  const box = $('ptr');
+  if (!S.target) { box.classList.remove('show'); return; }
+  box.classList.add('show');
+  box.classList.toggle('none', !!d.none);
+  if (d.none) { $('ptrtext').textContent = d.live ? `No ${d.label} pins on the map (check the filters)` : `${d.label}: waiting for your live position`; $('ptrarrow').style.transform = ''; return; }
+  const dist = d.d < 1000 ? `${Math.round(d.d)} m` : `${(d.d / 1000).toFixed(1)} km`;
+  $('ptrtext').textContent = `${nameOf(d.key)} · ${dist} ${d.compass}`;
+  $('ptrarrow').style.transform = `rotate(${(d.angle || 0) - 90}deg)`; // ➤ points right; 0° = up
+}
+$('target').innerHTML = TARGETS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+$('target').onchange = e => { S.target = e.target.value; if (!S.target) $('ptr').classList.remove('show'); tellMap(); persist(); };
+
+// ---- progress panel and session summary -------------------------------------------------
+const SESSION = {start: Date.now(), walked: 0, marked: {}};
+let lastCounts = {};
+function renderProgress() {
+  const mins = Math.round((Date.now() - SESSION.start) / 60000);
+  const total = Object.values(SESSION.marked).reduce((a, b) => a + b, 0);
+  const walked = SESSION.walked < 1000 ? `${Math.round(SESSION.walked)} m` : `${(SESSION.walked / 1000).toFixed(1)} km`;
+  const top = Object.entries(SESSION.marked).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, n]) => `${nameOf(k)} ${n}`).join(', ');
+  const rows = Object.entries(lastCounts).filter(([k, c]) => c[1] > 0 && (COLLECT.includes(k) || ALL_GATHER.includes(k)))
+    .sort((a, b) => nameOf(a[0]).localeCompare(nameOf(b[0])))
+    .map(([k, [d, t]]) => `<div class="row"><span>${nameOf(k)}</span><span>${d}/${t}</span><span class="bar"><i style="width:${Math.round(100 * d / t)}%"></i></span></div>`).join('');
+  $('progbox').innerHTML = `<div class="sess"><h4>This session</h4>${mins} min · ${walked} walked · ${total} marked${top ? `<br>${top}` : ''}</div>`
+    + `<h4>${S.map} (pins your filters show)</h4>${rows || '<div>No collectibles or resources shown. Turn them on in the filters.</div>'}`;
+}
+$('prog').onclick = () => { S.showProgress = !S.showProgress; $('prog').setAttribute('aria-pressed', S.showProgress); $('progbox').classList.toggle('show', S.showProgress); if (S.showProgress) renderProgress(); persist(); };
+setInterval(() => { if (S.showProgress) renderProgress(); }, 15000);
+
+// ---- sound cue --------------------------------------------------------------------------
+let lastBeepId = '', audio = null;
+function beep() {
+  try {
+    audio = audio || new AudioContext();
+    const t = audio.currentTime;
+    [880, 1320].forEach((f, i) => {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = f; o.type = 'sine';
+      g.gain.setValueAtTime(0.0001, t + i * 0.12); g.gain.exponentialRampToValueAtTime(0.15, t + i * 0.12 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.12 + 0.11);
+      o.connect(g).connect(audio.destination); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.12);
+    });
+  } catch (e) { /* no audio device */ }
+}
+
+// ---- activity profiles --------------------------------------------------------------------
+let filterWaiter = null;
+function currentFilters() {
+  return new Promise(res => {
+    const f = $('frame').contentWindow; if (!f) return res(null);
+    const timer = setTimeout(() => { filterWaiter = null; res(null); }, 4000);
+    filterWaiter = keys => { clearTimeout(timer); res(keys); };
+    f.postMessage({aao: 'getFilters'}, '*');
+  });
+}
+function sendFilters(keys) {
+  if (!keys) return;
+  if (S.live) { const f = $('frame').contentWindow; f && f.postMessage({aao: 'setFilters', keys}, '*'); }
+  else { S.preset = 'custom'; S.types = keys.filter(k => TYPES.some(t => t[0] === k)); $('preset').value = 'custom'; load(); }
+}
+async function applyProfile(name) {
+  const prev = S.profile || 'manual', p = PROFILES[name] || PROFILES.manual;
+  if (prev === 'manual' && name !== 'manual') {
+    S.manualFilters = S.live ? await currentFilters() : (currentTypes() || []).slice();
+    S.manualTarget = S.target || ''; S.manualRadius = S.discRadius || 8;
+  }
+  S.profile = name; $('profile').value = name;
+  if (p.filters) {
+    sendFilters(p.filters);
+    S.discRadius = p.radius; $('radius').value = String(p.radius);
+    S.target = p.target; $('target').value = p.target;
+    S.autoZoom = true; $('zoom').setAttribute('aria-pressed', true);
+    S.autoDiscover = true; $('disc').setAttribute('aria-pressed', true);
+  } else if (prev !== 'manual') {
+    if (S.manualFilters) sendFilters(S.manualFilters);
+    S.target = S.manualTarget || ''; $('target').value = S.target; if (!S.target) $('ptr').classList.remove('show');
+    S.discRadius = S.manualRadius || 8; $('radius').value = String(S.discRadius);
+  }
+  tellMap(); persist();
+}
+$('profile').innerHTML = Object.entries(PROFILES).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join('');
+$('profile').onchange = e => applyProfile(e.target.value);
+window.cycleProfile = () => { const keys = Object.keys(PROFILES); applyProfile(keys[(keys.indexOf(S.profile || 'manual') + 1) % keys.length]); };
+
+// ---- round minimap ----------------------------------------------------------------------
+function setRound(on) {
+  S.round = !!on; document.body.classList.toggle('round', S.round);
+  $('round').setAttribute('aria-pressed', S.round);
+  api() && api().set_round(S.round);
+}
+$('round').onclick = () => { setRound(!S.round); tellMap(); persist(); };
+
+// ---- settings panel -----------------------------------------------------------------------
+$('prefsbtn').onclick = () => { const o = $('prefs').classList.toggle('open'); $('prefsbtn').setAttribute('aria-expanded', o); };
+[['pref-sound', 'sound'], ['pref-autohide', 'autoHide'], ['pref-lowpower', 'lowPower']].forEach(([id, key]) => {
+  $(id).onchange = e => { S[key] = e.target.checked; if (key === 'sound' && S.sound) beep(); tellMap(); persist(); };
+});
 window.setBars = h => { S.barsHidden = !!h; document.body.classList.toggle('barshidden', S.barsHidden); tellMap(); };
 $('radius').innerHTML = [5, 6, 7, 8, 9, 10, 12, 15, 18, 20, 25, 30].map(m => `<option value="${m}">✓ ${m} m</option>`).join('');
 $('radius').onchange = e => { S.discRadius = Number(e.target.value); tellMap(); persist(); };
@@ -227,6 +398,11 @@ async function init(){
   $('disc').setAttribute('aria-pressed', !!S.autoDiscover);
   $('radius').value = String(S.discRadius || 8); if (!$('radius').value) $('radius').value = '8';
   document.body.classList.toggle('barshidden', !!S.barsHidden);
+  if (!PROFILES[S.profile]) S.profile = 'manual';
+  $('profile').value = S.profile; $('target').value = S.target || '';
+  $('pref-sound').checked = !!S.sound; $('pref-autohide').checked = !!S.autoHide; $('pref-lowpower').checked = !!S.lowPower;
+  $('prog').setAttribute('aria-pressed', !!S.showProgress); $('progbox').classList.toggle('show', !!S.showProgress);
+  setRound(!!S.round);
   load();
 }
 if (window.pywebview) init(); else window.addEventListener('pywebviewready', init);

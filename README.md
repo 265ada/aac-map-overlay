@@ -49,6 +49,11 @@ Both sides remember the code, so you only do this once.
 | 📡 Live | TH.GL's full map with your live position (Peer Link, above) |
 | 🔍 Smart zoom | Zooms in hard on tight clusters of pins around you and out in open areas, only while your character is moving. Standing still or a maximized overlay never changes the zoom, so you can look around and plan a route. Scrolling or dragging the map yourself pauses it for 10 seconds |
 | ✓ Auto-discover | Stand within range of a pin (8 m by default; pick 5–30 m with the **✓ 8 m** menu in the top bar) for 3 seconds and it's marked auto-discovered, the same way TH.GL's app marks it. The footer shows the nearest unmarked pin and a countdown. Pins that move (monsters), boss spawns and quest givers are skipped. Only pins your filters show are checked, so turn on Ores, Plants and Trees to have gathering nodes marked |
+| 🎯 Pointer | Pick a target (nearest collectible, nearest resource, ore, plants, trees, or one type like Coilstones). An arrow and distance at the bottom of the map point to the nearest unmarked one, for example "Raeven's Coilstone · 140 m NE", even while the overlay is locked |
+| 📊 Progress | Collected / total for every collectible and resource type the map shows, plus this session: time played, distance walked and what you marked |
+| 🧭 Profiles | **Gathering** (resources on, 12 m range, closer zoom, pointer to the nearest resource) and **Exploring** (collectibles on, 8 m range, wider zoom, pointer to the nearest collectible). **Manual** puts your own filters, pointer and range back. **Ctrl+Alt+P** cycles them |
+| ⭕ Round map | A round minimap that turns with your facing; the corners are see-through |
+| ⚙ Settings | Sound when an unmarked pin comes in range; hide the overlay when another program is in front of the game; low-power drawing while you stand still (all on by default) |
 | 🛡 Ad blocking | Brave's ad-block engine with EasyList and EasyPrivacy, refreshed weekly. The footer counts what was blocked. Turn it off with `"adblock": false` in settings.json |
 | Map and Markers menus | Auroria or any of the 8 dungeon maps, plus marker presets (normal mode) |
 | ☰ | Pick marker types one by one (normal mode) |
@@ -63,6 +68,7 @@ Both sides remember the code, so you only do this once.
 | **Ctrl+Alt+M** | Show / hide the overlay |
 | **Alt+L** | Lock / unlock. Locking hides every bar (map only, clicks go to the game); unlocking brings the bars back. The overlay reopens locked or unlocked, the way you left it |
 | **Ctrl+Alt+H** | Hide / show the top bars. While they're hidden, drag the thin strip at the top edge to move the window |
+| **Ctrl+Alt+P** | Next activity profile (Manual → Gathering → Exploring) |
 | **Ctrl+Alt+↑ / ↓** | More / less opaque |
 
 TH.GL's Filters panel starts closed each time the overlay opens. Drag the title to move the window and the corner grip to resize it. Settings (map, markers, opacity,

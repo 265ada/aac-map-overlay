@@ -3,6 +3,12 @@
 //   {aao: 'bars', hidden: true|false}   hide TH.GL's top header
 //   {aao: 'autozoom', on: true|false}   smart zoom
 //   {aao: 'autodiscover', on: true|false, radius: metres}  mark pins you stand on for 3 s
+//   {aao: 'target', keys: [...], label}   point at the nearest unmarked pin of these types
+//   {aao: 'setFilters', keys: [...]}      switch TH.GL's filters (activity profiles)
+//   {aao: 'getFilters'}                   reply {aao:'filters', keys} with the current filters
+//   {aao: 'rotate', on}                   rotate the map with your facing (round minimap)
+//   {aao: 'lowpower', on}                 draw the map at ~8 fps while nothing moves
+// and reports back: discStatus, target, progress, marked, walked, filters.
 //
 // Smart zoom: TH.GL's map follows your character, so the map centre is you.
 // Every ~0.8 s it measures how far the nearest visible pins are from the centre
@@ -25,7 +31,7 @@
   const MOVE_CM = 150;        // you count as moving after going 1.5 m...
   const MOVING_MS = 2500;     // ...and stay "moving" this long after the last step
 
-  let autoOn = false, pausedUntil = 0, timer = 0, ctx = null, anchor = null, movedAt = 0;
+  let autoOn = false, pausedUntil = 0, timer = 0, ctx = null, anchor = null, movedAt = 0, zoomBias = 0, touchedAt = 0;
 
   // ---- top header -----------------------------------------------------------
   const barsCss = document.createElement('style');
@@ -60,18 +66,16 @@
   function hookUserInput(canvas) {
     if (canvas.__aaoHooked) return;
     canvas.__aaoHooked = true;
-    const pause = () => { pausedUntil = Date.now() + PAUSE_MS; };
+    const pause = () => { pausedUntil = Date.now() + PAUSE_MS; touchedAt = Date.now(); };
     canvas.addEventListener('wheel', pause, {passive: true});
     canvas.addEventListener('pointerdown', pause);
+    canvas.addEventListener('pointermove', () => { touchedAt = Date.now(); }, {passive: true});
   }
 
   // ---- smart zoom -------------------------------------------------------------
   function tick() {
     if (!autoOn || Date.now() < pausedUntil || document.hidden) return;
-    // only while your character moves (live position from the TH.GL app)
-    const me = myPosition();
-    if (!me) return;
-    if (!anchor || Math.hypot(me.x - anchor.x, me.y - anchor.y) > MOVE_CM) { if (anchor) movedAt = Date.now(); anchor = {x: me.x, y: me.y}; }
+    // only while your character moves (tracked by the companion loop below)
     if (Date.now() - movedAt > MOVING_MS) return;
     const m = findMap();
     if (!m) return;
@@ -100,7 +104,7 @@
     const spread = Math.max(best[best.length - 1], 0.02);
     const side = Math.min(m.canvas.clientWidth, m.canvas.clientHeight) || 400;
     const maxZ = w.getMaxZoom() - MAX_FROM_TOP;
-    let z = Math.log2((side * FILL) / spread);   // screen px = map px * 2^zoom
+    let z = Math.log2((side * FILL) / spread) + zoomBias;   // screen px = map px * 2^zoom; profiles nudge it
     z = Math.max(MIN_Z, Math.min(maxZ, z));
 
     const now = w.targetZoom !== undefined ? w.targetZoom : w.getZoom();
@@ -196,10 +200,14 @@
       lastStatus = now;
       const held = best && near.has(best.id) ? now - near.get(best.id) : 0;
       window.parent.postMessage({aao: 'discStatus', d: best ? Math.sqrt(bestD2) / 100 : null,
-        key: best ? best.key : '', held, need: DWELL_MS}, '*');
+        key: best ? best.key : '', id: best ? best.id : '', held, need: DWELL_MS}, '*');
     }
     if (done.length) {
-      try { markDiscovered(done); } catch (e) { /* TH.GL changed; try again next time */ markFn = null; }
+      try {
+        markDiscovered(done);
+        const keys = done.map(id => id.split('@')[0]);
+        if (window.parent !== window) window.parent.postMessage({aao: 'marked', keys}, '*');
+      } catch (e) { /* TH.GL changed; try again next time */ markFn = null; }
       done.forEach(id => near.delete(id));
     }
   }
@@ -216,8 +224,111 @@
   function setAuto(on) {
     autoOn = !!on;
     clearInterval(timer);
-    if (autoOn) { pausedUntil = 0; anchor = null; movedAt = 0; timer = setInterval(tick, 500); tick(); }
+    if (autoOn) { pausedUntil = 0; timer = setInterval(tick, 500); tick(); }
   }
+
+
+  // ---- companion loop: movement, walked distance, target pointer, progress ---------
+  let targetKeys = [], targetLabel = '', walkedCm = 0, lastPos = null, lastProgress = 0;
+  function findStore(test) { return walkFibers(s => s && typeof s === 'object' && test(s) ? s : null); }
+
+  // where a map position appears on screen relative to another (works when the map is rotated)
+  function screenOffset(w, fromLL, toLL) {
+    const cw = w.canvas.clientWidth || 300, ch = w.canvas.clientHeight || 300;
+    const ll = (x, y) => { const r = w.screenToLatLng(x, y); return Array.isArray(r) ? r : [r.lat, r.lng]; };
+    const c = ll(cw / 2, ch / 2), u = ll(cw / 2, ch / 2 - 100), r = ll(cw / 2 + 100, ch / 2);
+    const ux = u[0] - c[0], uy = u[1] - c[1], rx = r[0] - c[0], ry = r[1] - c[1];
+    const tx = toLL[0] - fromLL[0], ty = toLL[1] - fromLL[1], det = rx * uy - ry * ux;
+    if (!det) return null;
+    const a = (tx * uy - ty * ux) / det, b = (rx * ty - ry * tx) / det; // target = a*right + b*up
+    return {x: a * 100, y: -b * 100};
+  }
+  const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+  function companionTick() {
+    const me = myPosition(), now = Date.now();
+    if (me) {
+      if (!anchor || Math.hypot(me.x - anchor.x, me.y - anchor.y) > MOVE_CM) { if (anchor) movedAt = now; anchor = {x: me.x, y: me.y}; }
+      if (lastPos) {
+        const step = Math.hypot(me.x - lastPos.x, me.y - lastPos.y);
+        if (step > 30 && step < 5000) walkedCm += step; // ignore jitter and teleports
+      }
+      lastPos = {x: me.x, y: me.y};
+      if (walkedCm > 2000 && window.parent !== window) { window.parent.postMessage({aao: 'walked', m: walkedCm / 100}, '*'); walkedCm = 0; }
+    }
+    const m = findMap();
+    if (!m || window.parent === window) return;
+
+    // nearest unmarked pin of the chosen types
+    if (targetKeys.length) {
+      let best = null, bd = Infinity;
+      if (me) for (const p of m.markers.getInstances()) {
+        if (!p.latLng || p.isDiscovered || !targetKeys.includes(p.key) || m.markers.isHidden(p)) continue;
+        const d = Math.hypot(p.latLng[0] - me.x, p.latLng[1] - me.y);
+        if (d < bd) { bd = d; best = p; }
+      }
+      if (best) {
+        let angle = 0, compass = '';
+        try {
+          const a = m.webmap.projectAt([me.x, me.y], 0), b = m.webmap.projectAt(best.latLng, 0);
+          compass = COMPASS[Math.round(((Math.atan2(b.x - a.x, a.y - b.y) * 180 / Math.PI) + 360) % 360 / 45) % 8];
+          const off = screenOffset(m.webmap, [me.x, me.y], best.latLng);
+          if (off) angle = Math.atan2(off.x, -off.y) * 180 / Math.PI;
+        } catch (e) { /* projection not ready */ }
+        window.parent.postMessage({aao: 'target', label: targetLabel, key: best.key, d: bd / 100, angle, compass}, '*');
+      } else {
+        window.parent.postMessage({aao: 'target', label: targetLabel, none: true, live: !!me}, '*');
+      }
+    }
+
+    // collection progress for the pin types on this map (every 3 s)
+    if (now - lastProgress > 3000) {
+      lastProgress = now;
+      const counts = {};
+      for (const p of m.markers.getInstances()) {
+        if (!p.key || /^(mob-|quest-|__center|station-|housing-)/.test(p.key)) continue;
+        const c = counts[p.key] || (counts[p.key] = [0, 0]);
+        c[1]++; if (p.isDiscovered) c[0]++;
+      }
+      window.parent.postMessage({aao: 'progress', counts}, '*');
+    }
+  }
+  setInterval(companionTick, 500);
+
+  // ---- activity profiles: switch TH.GL's filters --------------------------------------
+  function filterStore() { return findStore(s => typeof s.setFilters === 'function' && Array.isArray(s.filters)); }
+  function withStore(get, fn, tries = 0) {
+    const st = get();
+    if (st) return fn(st);
+    if (tries < 30) setTimeout(() => withStore(get, fn, tries + 1), 1000);
+  }
+
+  // ---- round minimap: rotate the map with your facing -----------------------------------
+  function setRotate(on) {
+    withStore(() => findStore(s => typeof s.setRotateMapWithPlayer === 'function'), st => {
+      st.setRotateMapWithPlayer(!!on);
+      if (!on) { const m = findMap(); if (m && m.webmap.setBearing) m.webmap.setBearing(0); }
+    });
+  }
+
+  // ---- low-power: draw ~8 frames a second while you stand still and don't touch the map ----
+  let lowPower = false;
+  function idle() {
+    const now = Date.now(), m = ctx && ctx.webmap;
+    const animating = m && (Math.abs((m.targetZoom ?? m.zoom) - m.zoom) > 0.005 || m.dragging || m.zoomAnim || m.panAnim);
+    return !animating && now - movedAt > 3000 && now - touchedAt > 3000;
+  }
+  const slowWindow = new Proxy(window, {
+    get(t, prop) {
+      if (prop === 'requestAnimationFrame') return cb => (lowPower && idle()) ? setTimeout(() => t.requestAnimationFrame(cb), 120) : t.requestAnimationFrame(cb);
+      const v = t[prop];
+      return typeof v === 'function' ? v.bind(t) : v;
+    }
+  });
+  setInterval(() => {
+    const m = findMap();
+    if (m && m.webmap.rafWindow === window) m.webmap.rafWindow = slowWindow;
+  }, 2000);
 
   // ---- Peer Link backup: keep the Peer Code and "Me" in the overlay's own settings ----
   // TH.GL keeps them in this page's browser storage, which a reinstall, update or
@@ -260,7 +371,12 @@
     const d = e.data;
     if (e.source !== window.parent || !d || typeof d !== 'object' || !d.aao) return;
     if (d.aao === 'bars') setBars(!!d.hidden);
-    if (d.aao === 'autozoom') setAuto(d.on);
+    if (d.aao === 'autozoom') { if (Number.isFinite(d.bias)) zoomBias = d.bias; setAuto(d.on); }
+    if (d.aao === 'target') { targetKeys = Array.isArray(d.keys) ? d.keys : []; targetLabel = d.label || ''; }
+    if (d.aao === 'setFilters' && Array.isArray(d.keys)) withStore(filterStore, st => st.setFilters(d.keys.slice()));
+    if (d.aao === 'getFilters') withStore(filterStore, st => window.parent.postMessage({aao: 'filters', keys: st.filters.slice(), req: d.req}, '*'));
+    if (d.aao === 'rotate') setRotate(d.on);
+    if (d.aao === 'lowpower') lowPower = !!d.on;
     if (d.aao === 'autodiscover') {
       const r = Number(d.radius);
       if (Number.isFinite(r) && r >= 1 && r <= 100) RADIUS = r * 100; // metres -> game units (cm)
