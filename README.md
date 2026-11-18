@@ -44,12 +44,15 @@ Both sides remember the code, so you only do this once.
 
 ## Features
 
+The overlay looks like a plain map: its bars and footer, and TH.GL's map buttons, only appear while you hover over it and it's unlocked. Locking closes any open panels (markers, settings, progress, TH.GL's Filters); unlocking opens them again.
+
+
 | | |
 |---|---|
 | 📡 Live | TH.GL's full map with your live position (Peer Link, above) |
 | 🔍 Smart zoom | Zooms in hard on tight clusters of pins around you and out in open areas, only while your character is moving. Standing still or a maximized overlay never changes the zoom, so you can look around and plan a route. Scrolling or dragging the map yourself pauses it for 10 seconds |
 | ✓ Auto-discover | Stand within range of a pin (8 m by default; pick 5–30 m with the **✓ 8 m** menu in the top bar) for 3 seconds and it's marked auto-discovered, the same way TH.GL's app marks it. The footer shows the nearest unmarked pin and a countdown. Pins that move (monsters), boss spawns and quest givers are skipped. Only pins your filters show are checked, so turn on Ores, Plants and Trees to have gathering nodes marked |
-| 🎯 Pointer | Pick a target (nearest collectible, nearest resource, ore, plants, trees, or one type like Coilstones). An arrow and distance at the bottom of the map point to the nearest unmarked one, for example "Raeven's Coilstone · 140 m NE", even while the overlay is locked |
+| 🎯 Pointer | Pick a target (nearest collectible, boss, dungeon, Nui, resource, ore, plants, trees, or one type like Coilstones). A dashed guide line runs from you to it on the map, with an arrow at the edge when it's off-screen. An arrow and distance at the bottom of the map point to the nearest unmarked one, for example "Raeven's Coilstone · 140 m NE", even while the overlay is locked |
 | 📊 Progress | Collected / total for every collectible and resource type the map shows, plus this session: time played, distance walked and what you marked |
 | 🧭 Profiles | **Gathering** (resources on, 12 m range, closer zoom, pointer to the nearest resource) and **Exploring** (collectibles on, 8 m range, wider zoom, pointer to the nearest collectible). **Manual** puts your own filters, pointer and range back. **Ctrl+Alt+P** cycles them |
 | ⭕ Round map | A round minimap that turns with your facing; the corners are see-through |

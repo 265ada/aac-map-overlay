@@ -7,7 +7,16 @@
 :root{--bg:#14171c;--bar:#1d2128;--line:#323946;--fg:#e8ebf0;--muted:#9aa3b1;--accent:#ff8a4c;--ok:#5fd08d}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.35 "Segoe UI",system-ui,sans-serif;overflow:hidden}
-body{display:flex;flex-direction:column;border:1px solid var(--line)}
+body{display:flex;flex-direction:column;position:relative;border:1px solid transparent;transition:border-color .15s}
+body:hover:not(.locked){border-color:var(--line)}
+#chrome{position:absolute;top:0;left:0;right:0;z-index:6;opacity:0;pointer-events:none;transition:opacity .15s;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+body:hover #chrome{opacity:1;pointer-events:auto}
+body.locked #chrome,body.barshidden #chrome{display:none}
+.foot{position:absolute;left:0;right:0;bottom:0;z-index:6;opacity:0;pointer-events:none;transition:opacity .15s}
+body:hover:not(.locked):not(.barshidden) .foot{opacity:1;pointer-events:auto}
+#credit2{position:absolute;left:6px;bottom:3px;z-index:5;font-size:10px;color:#cfd5de;opacity:.55;text-decoration:none;text-shadow:0 0 3px #000}
+#credit2:hover{opacity:1;text-decoration:underline}
+body:hover:not(.locked):not(.barshidden) #credit2{display:none}
 .bar{display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--bar);border-bottom:1px solid var(--line);user-select:none}
 .title{font-weight:600;letter-spacing:.02em;flex:1;cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 select,button{font:inherit;color:var(--fg);background:#262b34;border:1px solid var(--line);border-radius:5px;padding:3px 7px}
@@ -31,9 +40,8 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#0d0
 .foot .keys{flex:1;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grip{width:16px;height:16px;cursor:nwse-resize;flex:none;background:linear-gradient(135deg,transparent 50%,var(--muted) 50%,var(--muted) 60%,transparent 60%,transparent 70%,var(--muted) 70%,var(--muted) 80%,transparent 80%)}
 #lockbadge{display:none;position:absolute;top:6px;left:50%;transform:translateX(-50%);background:rgba(20,23,28,.85);border:1px solid var(--line);border-radius:12px;padding:2px 10px;font-size:11px;color:var(--muted);pointer-events:none;z-index:2}
-body.locked .bar,body.locked .row2,body.locked #types{display:none}
-body.locked .foot .keys,body.locked .grip{opacity:.25}
-body.locked #lockbadge{display:block}
+body.locked #lockbadge{display:block;animation:aaofade 3s forwards}
+@keyframes aaofade{0%,70%{opacity:1}100%{opacity:0}}
 #live[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1b1209}
 body.live #preset,body.live #filt{display:none}
 #livehelp{display:none;position:absolute;left:8px;right:8px;bottom:8px;z-index:3;background:rgba(29,33,40,.96);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:12px}
@@ -44,7 +52,6 @@ body.live.newlive #livehelp{display:block}
 #upd span{flex:1}
 #upd .go{background:var(--ok);border-color:var(--ok);color:#0b1a10}
 #zoom[aria-pressed="true"],#disc[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1b1209}
-body.barshidden .bar,body.barshidden .row2,body.barshidden #types{display:none}
 .dragstrip{display:none;position:absolute;top:0;left:0;right:0;height:8px;z-index:4;cursor:move}
 body.barshidden .dragstrip{display:block}
 body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
@@ -54,7 +61,6 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
 #prefs.open{display:flex}
 #prefs label{display:flex;gap:6px;align-items:center;cursor:pointer}
 #prefs input{accent-color:var(--accent)}
-body.locked #prefs,body.barshidden #prefs{display:none}
 #ptr{display:none;position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:3;align-items:center;gap:6px;background:rgba(20,23,28,.88);border:1px solid var(--line);border-radius:14px;padding:3px 10px 3px 6px;font-size:12px;white-space:nowrap;pointer-events:none}
 #ptr.show{display:flex}
 #ptr .arrow{display:inline-block;width:18px;height:18px;line-height:18px;text-align:center;color:var(--accent);font-size:15px;transition:transform .3s}
@@ -72,6 +78,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
 </style>
 </head>
 <body>
+<div id="chrome">
 <div class="bar">
   <div class="title pywebview-drag-region" title="Drag to move">AAC Map</div>
   <button class="icon" id="live" type="button" title="Live: TH.GL's full map with your live position (needs the TH.GL app + Peer Link)" aria-pressed="false">📡</button>
@@ -102,6 +109,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
   <label><input type="checkbox" id="pref-autohide"> Only show while the game is in front (Ctrl+Alt+M shows it anyway)</label>
   <label><input type="checkbox" id="pref-lowpower"> Low-power: draw the map slower while you stand still</label>
 </div>
+</div>
 <div class="mapwrap">
   <div class="dragstrip pywebview-drag-region" title="Drag to move · Ctrl+Alt+H shows the bars"></div>
   <div id="upd" role="status"><span id="updtext"></span><button type="button" class="go" id="updgo">Update</button><button type="button" id="updlater">Later</button></div>
@@ -110,6 +118,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
   <div id="progbox" role="region" aria-label="Progress"></div>
   <div id="livehelp"><b>Live mode, first time only:</b> open the TH.GL app on your PC and copy its <b>Peer Code</b>. Here, click <b>Peer Link</b> in the map's top-right controls, paste the code, pick your app as <b>Me</b> and turn on <b>Live mode</b>. It remembers this. <button type="button" id="livehelpx">Got it</button></div>
   <iframe id="frame" title="ArcheAge Chronicles Interactive Map" allowfullscreen></iframe>
+  <a href="https://archeagechronicles.th.gl/" id="credit2" title="ArcheAge Chronicles Interactive Map by The Hidden Gaming Lair">Map: TH.GL</a>
 </div>
 <div class="foot">
   <a href="https://archeagechronicles.th.gl/" id="credit">ArcheAge Chronicles Interactive Map</a> by The Hidden Gaming Lair
@@ -147,10 +156,13 @@ function TYPES_LIST() { return [
   ['telegnosis', "Mir's Far Sight"], ['whispering-tomb', "Hersander's Tower"], ['hersander-statue', "Hersander's Statue"], ['perdita', 'Book of Perdita'],
   ['record-stone', "Xil's Record Stone"], ['message-page', 'Record'], ['doodad-treasure-chest', 'Treasure Chest'], ['looting-object', 'Loot Object'],
   ['doodad-gyldenlords-coin', "Gyldenlord's Coin"], ['destructible-object', 'Destructible Object'], ['doodad-broken-machine', 'Broken Machine'], ['doodad-bonfire', 'Bonfire']]; }
-const nameOf = k => NAMES[k] || (k || '').replace(/^doodad-/, '').replace(/-/g, ' ');
+const nameOf = k => NAMES[k] || (k || '').replace(/^(doodad|mob)-/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 const TARGETS = [
   ['', '🎯 No pointer', []],
   ['collect', '🎯 Nearest collectible', COLLECT],
+  ['boss', '🎯 Nearest boss', ['mob-*']],
+  ['dungeon', '🎯 Nearest dungeon', ['dungeon', 'dungeon-entrance']],
+  ['nui', '🎯 Nearest Nui (statue, tear, flame)', ['nui-idol', 'tears-of-nui', 'nui-flame']],
   ['gather', '🎯 Nearest resource', ALL_GATHER],
   ['ore', '🎯 Ore & rocks', GATHER.ore], ['plant', '🎯 Plants', GATHER.plant], ['tree', '🎯 Trees', GATHER.tree], ['sea', '🎯 Sea resources', GATHER.sea],
   ...COLLECT.map(k => [k, '🎯 ' + nameOf(k), [k]])];
@@ -221,7 +233,7 @@ function showTarget(d) {
   if (!S.target) { box.classList.remove('show'); return; }
   box.classList.add('show');
   box.classList.toggle('none', !!d.none);
-  if (d.none) { $('ptrtext').textContent = d.live ? `No ${d.label} pins on the map (check the filters)` : `${d.label}: waiting for your live position`; $('ptrarrow').style.transform = ''; return; }
+  if (d.none) { $('ptrtext').textContent = d.live ? `No ${d.label.replace(/^Nearest /, '')} pins on the map (check the filters)` : `${d.label}: waiting for your live position`; $('ptrarrow').style.transform = ''; return; }
   const dist = d.d < 1000 ? `${Math.round(d.d)} m` : `${(d.d / 1000).toFixed(1)} km`;
   $('ptrtext').textContent = `${nameOf(d.key)} · ${dist} ${d.compass}`;
   $('ptrarrow').style.transform = `rotate(${(d.angle || 0) - 90}deg)`; // ➤ points right; 0° = up
@@ -345,6 +357,7 @@ $('max').onclick = async () => {
   $('max').title = on ? 'Back to the previous size' : 'Maximize to this monitor (click again to go back)';
 };
 $('quit').onclick = () => api() && api().quit();
+$('credit2').onclick = e => { e.preventDefault(); api() ? api().open_url($('credit').href) : open($('credit').href); };
 $('credit').onclick = e => { e.preventDefault(); api() ? api().open_url($('credit').href) : open($('credit').href); };
 
 // resize from the corner grip (the window has no frame)
@@ -378,9 +391,26 @@ $('updgo').onclick = () => { if (!updInfo) return; if (updInfo.state === 'failed
 $('updlater').onclick = () => $('upd').classList.remove('show');
 
 // called from Python when a hotkey changes lock or opacity
+let lockMemory = null;
+function panelsOnLock(locking) {
+  const f = $('frame').contentWindow;
+  if (locking) {
+    lockMemory = {types: $('types').classList.contains('open'), prefs: $('prefs').classList.contains('open'), prog: !!S.showProgress};
+    $('types').classList.remove('open'); $('filt').setAttribute('aria-expanded', false);
+    $('prefs').classList.remove('open'); $('prefsbtn').setAttribute('aria-expanded', false);
+    $('progbox').classList.remove('show');
+  } else if (lockMemory) {
+    if (lockMemory.types) { $('types').classList.add('open'); $('filt').setAttribute('aria-expanded', true); }
+    if (lockMemory.prefs) { $('prefs').classList.add('open'); $('prefsbtn').setAttribute('aria-expanded', true); }
+    if (lockMemory.prog) { $('progbox').classList.add('show'); renderProgress(); }
+    lockMemory = null;
+  }
+  f && f.postMessage({aao: 'locked', on: locking}, '*'); // TH.GL's Filters panel does the same
+}
 window.onNative = st => {
   const was = !!S.locked;
   S.locked = !!st.locked; document.body.classList.toggle('locked', S.locked);
+  if (was !== S.locked) panelsOnLock(S.locked);
   // lock hides every bar; unlocking brings them back, even if Ctrl+Alt+H had hidden them
   if (was && !S.locked && S.barsHidden) { window.setBars(false); persist(); }
   else if (was !== S.locked) tellMap();
@@ -403,6 +433,7 @@ async function init(){
   $('pref-sound').checked = !!S.sound; $('pref-autohide').checked = !!S.autoHide; $('pref-lowpower').checked = !!S.lowPower;
   $('prog').setAttribute('aria-pressed', !!S.showProgress); $('progbox').classList.toggle('show', !!S.showProgress);
   setRound(!!S.round);
+  if (S.locked) { lockMemory = null; panelsOnLock(true); } // opened locked: start clean, reopen on unlock
   load();
 }
 if (window.pywebview) init(); else window.addEventListener('pywebviewready', init);

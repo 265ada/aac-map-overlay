@@ -33,13 +33,40 @@
 
   let autoOn = false, pausedUntil = 0, timer = 0, ctx = null, anchor = null, movedAt = 0, zoomBias = 0, touchedAt = 0;
 
-  // ---- top header -----------------------------------------------------------
-  const barsCss = document.createElement('style');
-  barsCss.textContent = 'header.fixed{display:none!important}:root{--header-h:0px!important}';
+  // ---- clean look: no header; TH.GL's floating map controls only while hovered ----
+  // (and never while the overlay is locked or its bars are hidden with Ctrl+Alt+H)
+  const cleanCss = document.createElement('style');
+  cleanCss.textContent = 'header.fixed{display:none!important}:root{--header-h:0px!important}'
+    + 'div.fixed.z-500{transition:opacity .15s}'
+    + 'html.aao-clean div.fixed.z-500{opacity:0!important;pointer-events:none!important}';
+  let noHover = false, hovered = false, hoverTimer = 0;
+  function updateChrome() {
+    if (!document.documentElement) return;
+    if (!cleanCss.isConnected && document.head) document.head.appendChild(cleanCss); // the page builds <head> after this script starts
+    document.documentElement.classList.toggle('aao-clean', noHover || !hovered);
+  }
+  document.addEventListener('DOMContentLoaded', updateChrome);
+  setInterval(() => { if (!cleanCss.isConnected) updateChrome(); }, 1000); // re-add if the page swaps <head>
+  document.addEventListener('pointermove', () => { clearTimeout(hoverTimer); if (!hovered) { hovered = true; updateChrome(); } }, {passive: true});
+  // the pointer left this page (into the overlay's own bars, or out of the window)
+  document.addEventListener('mouseout', e => {
+    if (e.relatedTarget) return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => { hovered = false; updateChrome(); }, 400);
+  });
   function setBars(hidden) {
-    if (hidden) (document.head || document.documentElement).appendChild(barsCss);
-    else barsCss.remove();
+    noHover = !!hidden;
+    updateChrome();
     window.dispatchEvent(new Event('resize')); // let the map canvas refit
+  }
+
+  // ---- locking closes TH.GL's Filters panel; unlocking reopens it if it was open ----
+  let filtersWereOpen = false;
+  function setLocked(on) {
+    const st = walkFibers(s => s && typeof s === 'object' && typeof s.toggleShowFilters === 'function' ? s : null);
+    if (!st) return;
+    if (on) { filtersWereOpen = !!st.showFilters; if (st.showFilters) st.toggleShowFilters(); }
+    else if (filtersWereOpen && !st.showFilters) { st.toggleShowFilters(); filtersWereOpen = false; }
   }
 
   // ---- find TH.GL's map engine through React's internals ----------------------
@@ -229,7 +256,8 @@
 
 
   // ---- companion loop: movement, walked distance, target pointer, progress ---------
-  let targetKeys = [], targetLabel = '', walkedCm = 0, lastPos = null, lastProgress = 0;
+  let targetKeys = [], targetLabel = '', walkedCm = 0, lastPos = null, lastProgress = 0, guide = null;
+  const targetMatch = key => !!key && targetKeys.some(k => k.endsWith('*') ? key.startsWith(k.slice(0, -1)) : k === key);
   function findStore(test) { return walkFibers(s => s && typeof s === 'object' && test(s) ? s : null); }
 
   // where a map position appears on screen relative to another (works when the map is rotated)
@@ -263,7 +291,7 @@
     if (targetKeys.length) {
       let best = null, bd = Infinity;
       if (me) for (const p of m.markers.getInstances()) {
-        if (!p.latLng || p.isDiscovered || !targetKeys.includes(p.key) || m.markers.isHidden(p)) continue;
+        if (!p.latLng || p.isDiscovered || !targetMatch(p.key) || m.markers.isHidden(p)) continue;
         const d = Math.hypot(p.latLng[0] - me.x, p.latLng[1] - me.y);
         if (d < bd) { bd = d; best = p; }
       }
@@ -276,9 +304,13 @@
           if (off) angle = Math.atan2(off.x, -off.y) * 180 / Math.PI;
         } catch (e) { /* projection not ready */ }
         window.parent.postMessage({aao: 'target', label: targetLabel, key: best.key, d: bd / 100, angle, compass}, '*');
+        guide = {me: [me.x, me.y], to: best.latLng, d: bd / 100};
       } else {
         window.parent.postMessage({aao: 'target', label: targetLabel, none: true, live: !!me}, '*');
+        guide = null;
       }
+    } else {
+      guide = null;
     }
 
     // collection progress for the pin types on this map (every 3 s)
@@ -294,6 +326,58 @@
     }
   }
   setInterval(companionTick, 500);
+
+  // ---- objective guide: dashed line from you to the target, arrow at the edge if off-screen ----
+  const NS = 'http://www.w3.org/2000/svg';
+  let svg = null;
+  function guideSvg() {
+    if (svg && svg.isConnected) return svg;
+    svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('style', 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:400');
+    svg.innerHTML = '<defs><filter id="aaoglow"><feDropShadow dx="0" dy="0" stdDeviation="1.5" flood-color="#000" flood-opacity=".9"/></filter></defs>'
+      + '<g filter="url(#aaoglow)"><line id="aaoline" stroke="#ff8a4c" stroke-width="3" stroke-dasharray="9 7" stroke-linecap="round"/>'
+      + '<circle id="aaoring" r="13" fill="none" stroke="#ff8a4c" stroke-width="3"/>'
+      + '<path id="aaoedge" fill="#ff8a4c" stroke="#1b1209" stroke-width="1.5"/>'
+      + '<text id="aaolabel" fill="#fff" font-size="12" font-weight="600" font-family="Segoe UI,sans-serif" text-anchor="middle"></text></g>';
+    document.body.appendChild(svg);
+    return svg;
+  }
+  function drawGuide() {
+    const m = ctx && ctx.webmap ? ctx : findMap();
+    if (!guide || !m) { if (svg) svg.style.display = 'none'; return; }
+    const g = guideSvg(); g.style.display = '';
+    const w = m.webmap, rect = m.canvas.getBoundingClientRect();
+    const cw = m.canvas.clientWidth, ch = m.canvas.clientHeight;
+    let a, b, cLL;
+    try {
+      const r = w.screenToLatLng(cw / 2, ch / 2); cLL = Array.isArray(r) ? r : [r.lat, r.lng];
+      a = screenOffset(w, cLL, guide.me); b = screenOffset(w, cLL, guide.to);
+    } catch (e) { g.style.display = 'none'; return; }
+    if (!a || !b) { g.style.display = 'none'; return; }
+    const ox = rect.left + cw / 2, oy = rect.top + ch / 2;
+    const x1 = ox + a.x, y1 = oy + a.y, x2 = ox + b.x, y2 = oy + b.y;
+    const pad = 22, minX = rect.left + pad, maxX = rect.right - pad, minY = rect.top + pad, maxY = rect.bottom - pad;
+    const inside = x2 >= minX && x2 <= maxX && y2 >= minY && y2 <= maxY;
+    let ex = x2, ey = y2;
+    if (!inside) { // clip the line where it leaves the map
+      const dx = x2 - x1, dy = y2 - y1;
+      let t = 1;
+      if (dx) t = Math.min(t, dx > 0 ? (maxX - x1) / dx : (minX - x1) / dx);
+      if (dy) t = Math.min(t, dy > 0 ? (maxY - y1) / dy : (minY - y1) / dy);
+      t = Math.max(0, t); ex = x1 + dx * t; ey = y1 + dy * t;
+    }
+    const line = g.querySelector('#aaoline'), ring = g.querySelector('#aaoring'), edge = g.querySelector('#aaoedge'), label = g.querySelector('#aaolabel');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1); line.setAttribute('x2', ex); line.setAttribute('y2', ey);
+    ring.style.display = inside ? '' : 'none'; ring.setAttribute('cx', x2); ring.setAttribute('cy', y2);
+    const ang = Math.atan2(ey - y1, ex - x1), s = 11;
+    edge.style.display = inside ? 'none' : '';
+    edge.setAttribute('d', `M${ex + Math.cos(ang) * s},${ey + Math.sin(ang) * s} L${ex + Math.cos(ang + 2.5) * s},${ey + Math.sin(ang + 2.5) * s} L${ex + Math.cos(ang - 2.5) * s},${ey + Math.sin(ang - 2.5) * s}Z`);
+    const dist = guide.d < 1000 ? `${Math.round(guide.d)} m` : `${(guide.d / 1000).toFixed(1)} km`;
+    label.textContent = dist;
+    label.setAttribute('x', inside ? x2 : ex - Math.cos(ang) * 22); label.setAttribute('y', (inside ? y2 - 18 : ey - Math.sin(ang) * 22 + 4));
+  }
+  (function guideLoop() { drawGuide(); setTimeout(guideLoop, guide ? 50 : 500); })();
+  window.__aaoGuide = g => { guide = g; }; // troubleshooting: draw a guide without live position
 
   // ---- activity profiles: switch TH.GL's filters --------------------------------------
   function filterStore() { return findStore(s => typeof s.setFilters === 'function' && Array.isArray(s.filters)); }
@@ -372,11 +456,12 @@
     if (e.source !== window.parent || !d || typeof d !== 'object' || !d.aao) return;
     if (d.aao === 'bars') setBars(!!d.hidden);
     if (d.aao === 'autozoom') { if (Number.isFinite(d.bias)) zoomBias = d.bias; setAuto(d.on); }
-    if (d.aao === 'target') { targetKeys = Array.isArray(d.keys) ? d.keys : []; targetLabel = d.label || ''; }
+    if (d.aao === 'target') { targetKeys = Array.isArray(d.keys) ? d.keys : []; targetLabel = d.label || ''; if (!targetKeys.length) guide = null; }
     if (d.aao === 'setFilters' && Array.isArray(d.keys)) withStore(filterStore, st => st.setFilters(d.keys.slice()));
     if (d.aao === 'getFilters') withStore(filterStore, st => window.parent.postMessage({aao: 'filters', keys: st.filters.slice(), req: d.req}, '*'));
     if (d.aao === 'rotate') setRotate(d.on);
     if (d.aao === 'lowpower') lowPower = !!d.on;
+    if (d.aao === 'locked') setLocked(!!d.on);
     if (d.aao === 'autodiscover') {
       const r = Number(d.radius);
       if (Number.isFinite(r) && r >= 1 && r <= 100) RADIUS = r * 100; // metres -> game units (cm)
