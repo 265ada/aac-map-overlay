@@ -39,12 +39,18 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#0d0
 .foot a{color:var(--muted)}
 .foot .keys{flex:1;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grip{width:16px;height:16px;cursor:nwse-resize;flex:none;background:linear-gradient(135deg,transparent 50%,var(--muted) 50%,var(--muted) 60%,transparent 60%,transparent 70%,var(--muted) 70%,var(--muted) 80%,transparent 80%)}
-#lockbadge{display:none;position:absolute;top:6px;left:50%;transform:translateX(-50%);background:rgba(20,23,28,.85);border:1px solid var(--line);border-radius:12px;padding:2px 10px;font-size:11px;color:var(--muted);pointer-events:none;z-index:2}
-body.locked #lockbadge{display:block;animation:aaofade 3s forwards}
+#lockbadge{position:absolute;top:6px;right:6px;z-index:7;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 5px 3px;border-radius:7px;background:rgba(14,16,20,.62);border:1px solid rgba(255,255,255,.08);pointer-events:none;transition:opacity .15s}
+#lockbadge svg{width:15px;height:15px;display:block}
+#lockbadge .k{font:700 8px/1 "Segoe UI",system-ui,sans-serif;letter-spacing:.06em;color:#c9d0da}
+#lockbadge .shut{display:none}
+body.locked #lockbadge .shut{display:block}
+body.locked #lockbadge .open{display:none}
+body.locked #lockbadge svg{color:var(--accent)}
+#lockbadge svg{color:#c9d0da}
+body:hover:not(.locked):not(.barshidden) #lockbadge{opacity:0} /* the top bar covers this corner while you hover */
 /* locked: map only. Nothing reacts to the mouse, no bars, no footer */
 body.locked,body.locked *{pointer-events:none!important}
 body.locked #chrome,body.locked .foot,body.locked #types,body.locked #prefs,body.locked #progbox{display:none!important}
-@keyframes aaofade{0%,70%{opacity:1}100%{opacity:0}}
 #live[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1b1209}
 body.live #preset,body.live #filt{display:none}
 #livehelp{display:none;position:absolute;left:8px;right:8px;bottom:8px;z-index:3;background:rgba(29,33,40,.96);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:12px}
@@ -116,7 +122,11 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
 <div class="mapwrap">
   <div class="dragstrip pywebview-drag-region" title="Drag to move · Ctrl+Alt+H shows the bars"></div>
   <div id="upd" role="status"><span id="updtext"></span><button type="button" class="go" id="updgo">Update</button><button type="button" id="updlater">Later</button></div>
-  <div id="lockbadge">Locked · Alt+L to unlock</div>
+  <div id="lockbadge" aria-hidden="true" title="Alt+L locks / unlocks">
+    <svg class="shut" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2.2" fill="currentColor" stroke="none"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    <svg class="open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2.2" fill="currentColor" stroke="none"/><path d="M8 11V8a4 4 0 0 1 7.6-1.7"/></svg>
+    <span class="k">ALT+L</span>
+  </div>
   <div id="ptr" role="status"><span class="arrow" id="ptrarrow">➤</span><span id="ptrtext"></span></div>
   <div id="progbox" role="region" aria-label="Progress"></div>
   <div id="livehelp"><b>Live mode, first time only:</b> open the TH.GL app on your PC and copy its <b>Peer Code</b>. Here, click <b>Peer Link</b> in the map's top-right controls, paste the code, pick your app as <b>Me</b> and turn on <b>Live mode</b>. It remembers this. <button type="button" id="livehelpx">Got it</button></div>
