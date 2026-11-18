@@ -41,6 +41,9 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#0d0
 .grip{width:16px;height:16px;cursor:nwse-resize;flex:none;background:linear-gradient(135deg,transparent 50%,var(--muted) 50%,var(--muted) 60%,transparent 60%,transparent 70%,var(--muted) 70%,var(--muted) 80%,transparent 80%)}
 #lockbadge{display:none;position:absolute;top:6px;left:50%;transform:translateX(-50%);background:rgba(20,23,28,.85);border:1px solid var(--line);border-radius:12px;padding:2px 10px;font-size:11px;color:var(--muted);pointer-events:none;z-index:2}
 body.locked #lockbadge{display:block;animation:aaofade 3s forwards}
+/* locked: map only. Nothing reacts to the mouse, no bars, no footer */
+body.locked,body.locked *{pointer-events:none!important}
+body.locked #chrome,body.locked .foot,body.locked #types,body.locked #prefs,body.locked #progbox{display:none!important}
 @keyframes aaofade{0%,70%{opacity:1}100%{opacity:0}}
 #live[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1b1209}
 body.live #preset,body.live #filt{display:none}
@@ -197,6 +200,7 @@ function persist(){ api() && api().save({map:S.map, preset:S.preset, types:S.typ
 function tellMap(){
   const f = $('frame').contentWindow; if (!f) return;
   f.postMessage({aao:'bars', hidden:!!(S.barsHidden || S.locked)}, '*'); // locked = map only
+  f.postMessage({aao:'lockstate', on:!!S.locked}, '*');
   f.postMessage({aao:'autozoom', on:!!S.autoZoom && !S.maximized, bias:(PROFILES[S.profile] || {}).bias || 0}, '*'); // never while maximized (planning)
   const t = TARGETS.find(x => x[0] === (S.target || '')) || TARGETS[0];
   f.postMessage({aao:'target', keys:t[2], label:t[1].replace(/^🎯 /, '')}, '*');

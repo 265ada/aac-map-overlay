@@ -38,7 +38,9 @@
   const cleanCss = document.createElement('style');
   cleanCss.textContent = 'header.fixed{display:none!important}:root{--header-h:0px!important}'
     + 'div.fixed.z-500{transition:opacity .15s}'
-    + 'html.aao-clean div.fixed.z-500{opacity:0!important;pointer-events:none!important}';
+    + 'html.aao-clean div.fixed.z-500{opacity:0!important;pointer-events:none!important}'
+    // locked: the map ignores the mouse entirely, so nothing opens or highlights on hover
+    + 'html.aao-locked,html.aao-locked *{pointer-events:none!important}';
   let noHover = false, hovered = false, hoverTimer = 0;
   function updateChrome() {
     if (!document.documentElement) return;
@@ -59,6 +61,22 @@
     updateChrome();
     window.dispatchEvent(new Event('resize')); // let the map canvas refit
   }
+
+  // ---- locked: map only. Close the marker card and hover highlight, ignore the mouse ----
+  let lockedNow = false;
+  function applyLockState(on) {
+    lockedNow = !!on;
+    if (document.documentElement) document.documentElement.classList.toggle('aao-locked', lockedNow);
+    if (!lockedNow) return;
+    const sel = walkFibers(s => s && typeof s === 'object' && typeof s.setSelectedNodeId === 'function' ? s : null);
+    if (sel) {
+      if (sel.selectedNodeId) sel.setSelectedNodeId(null);
+      if (sel.selectedZone && sel.setSelectedZone) sel.setSelectedZone(null);
+    }
+    const m = findMap();
+    if (m && m.markers.hoveredMarkerId != null) m.markers.hoveredMarkerId = null;
+  }
+  document.addEventListener('DOMContentLoaded', () => applyLockState(lockedNow));
 
   // ---- locking closes TH.GL's Filters panel; unlocking reopens it if it was open ----
   let filtersWereOpen = false;
@@ -461,7 +479,8 @@
     if (d.aao === 'getFilters') withStore(filterStore, st => window.parent.postMessage({aao: 'filters', keys: st.filters.slice(), req: d.req}, '*'));
     if (d.aao === 'rotate') setRotate(d.on);
     if (d.aao === 'lowpower') lowPower = !!d.on;
-    if (d.aao === 'locked') setLocked(!!d.on);
+    if (d.aao === 'locked') { applyLockState(!!d.on); setLocked(!!d.on); }
+    if (d.aao === 'lockstate') applyLockState(!!d.on);
     if (d.aao === 'autodiscover') {
       const r = Number(d.radius);
       if (Number.isFinite(r) && r >= 1 && r <= 100) RADIUS = r * 100; // metres -> game units (cm)
