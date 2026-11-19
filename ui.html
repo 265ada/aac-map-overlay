@@ -59,6 +59,13 @@ body.live.newlive #livehelp{display:block}
 #upd{display:none;position:absolute;left:8px;right:8px;top:8px;z-index:5;background:rgba(29,33,40,.97);border:1px solid var(--ok);border-radius:8px;padding:8px 10px;font-size:12px;align-items:center;gap:8px}
 #upd.show{display:flex}
 #upd span{flex:1}
+#mapupd{display:none;position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:8;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-radius:14px;background:rgba(14,16,20,.82);border:1px solid rgba(251,191,36,.55);color:#fbbf24;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#mapupd.on{display:flex}
+#mapupd button{background:#fbbf24;border:0;color:#1a1405;border-radius:10px;padding:2px 9px;font:inherit;cursor:pointer}
+#mapupd .lk{display:none;color:#c9d0da;font-weight:500}
+body.locked #mapupd button{display:none}
+body.locked #mapupd .lk{display:inline}
+body:hover:not(.locked):not(.barshidden) #mapupd{bottom:34px} /* sit above the footer */
 #upd .go{background:var(--ok);border-color:var(--ok);color:#0b1a10}
 #zoom[aria-pressed="true"],#disc[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1b1209}
 .dragstrip{display:none;position:absolute;top:0;left:0;right:0;height:8px;z-index:4;cursor:move}
@@ -121,6 +128,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
 </div>
 <div class="mapwrap">
   <div class="dragstrip pywebview-drag-region" title="Drag to move · Ctrl+Alt+H shows the bars"></div>
+  <div id="mapupd" role="status"><span>Map update ready</span><span class="lk">· Alt+L to unlock, then reload</span><button type="button" id="mapupdgo">Reload map</button></div>
   <div id="upd" role="status"><span id="updtext"></span><button type="button" class="go" id="updgo">Update</button><button type="button" id="updlater">Later</button></div>
   <div id="lockbadge" aria-hidden="true" title="Alt+L locks / unlocks">
     <svg class="shut" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2.2" fill="currentColor" stroke="none"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
@@ -227,6 +235,7 @@ window.addEventListener('message', e => {
     api() && api().save({peerCode: S.peerCode, peerMe: S.peerMe});
   }
   if (e.data.aao === 'target') showTarget(e.data);
+  if (e.data.aao === 'mapupdate') $('mapupd').classList.toggle('on', e.data.status !== 'current');
   if (e.data.aao === 'progress') { lastCounts = e.data.counts || {}; if (S.showProgress) renderProgress(); }
   if (e.data.aao === 'walked') { SESSION.walked += e.data.m || 0; }
   if (e.data.aao === 'marked') { for (const k of e.data.keys || []) SESSION.marked[k] = (SESSION.marked[k] || 0) + 1; if (S.showProgress) renderProgress(); }
@@ -452,6 +461,7 @@ async function init(){
 }
 if (window.pywebview) init(); else window.addEventListener('pywebviewready', init);
 setTimeout(() => { if (!$('frame').src) init(); }, 1500); // plain-browser preview
+$('mapupdgo').onclick = () => { $('mapupd').classList.remove('on'); const f = $('frame').contentWindow; f && f.postMessage({aao:'reloadmap'}, '*'); };
 </script>
 </body>
 </html>

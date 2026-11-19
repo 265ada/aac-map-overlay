@@ -40,7 +40,9 @@
     + 'div.fixed.z-500{transition:opacity .15s}'
     + 'html.aao-clean div.fixed.z-500{opacity:0!important;pointer-events:none!important}'
     // locked: the map ignores the mouse entirely, so nothing opens or highlights on hover
-    + 'html.aao-locked,html.aao-locked *{pointer-events:none!important}';
+    + 'html.aao-locked,html.aao-locked *{pointer-events:none!important}'
+    // TH.GL's "Update Ready!" tooltip: the overlay shows its own bar at the bottom instead
+    + '[data-testid=new-version-label],[data-radix-popper-content-wrapper]:has([data-testid=new-version-label]){display:none!important}';
   let noHover = false, hovered = false, hoverTimer = 0;
   function updateChrome() {
     if (!document.documentElement) return;
@@ -469,6 +471,14 @@
     attempt();
   }
 
+  // ---- map update: TH.GL flags a newer site version; tell the overlay, reload on request ----
+  let mapUpdate = 'current';
+  setInterval(() => {
+    const b = document.querySelector('[data-testid=new-version-button]');
+    const st = (b && b.dataset.status) || 'current';
+    if (st !== mapUpdate && window.parent !== window) { mapUpdate = st; window.parent.postMessage({aao: 'mapupdate', status: st}, '*'); }
+  }, 3000);
+
   window.addEventListener('message', e => {
     const d = e.data;
     if (e.source !== window.parent || !d || typeof d !== 'object' || !d.aao) return;
@@ -478,6 +488,7 @@
     if (d.aao === 'setFilters' && Array.isArray(d.keys)) withStore(filterStore, st => st.setFilters(d.keys.slice()));
     if (d.aao === 'getFilters') withStore(filterStore, st => window.parent.postMessage({aao: 'filters', keys: st.filters.slice(), req: d.req}, '*'));
     if (d.aao === 'rotate') setRotate(d.on);
+    if (d.aao === 'reloadmap') location.reload();
     if (d.aao === 'lowpower') lowPower = !!d.on;
     if (d.aao === 'locked') { applyLockState(!!d.on); setLocked(!!d.on); }
     if (d.aao === 'lockstate') applyLockState(!!d.on);
