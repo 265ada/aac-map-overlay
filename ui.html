@@ -99,7 +99,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
   <div class="title pywebview-drag-region" title="Drag to move">AAC Map</div>
   <button class="icon" id="live" type="button" title="Live: TH.GL's full map with your live position (needs the TH.GL app + Peer Link)" aria-pressed="false">📡</button>
   <button class="icon" id="zoom" type="button" title="Smart zoom: zooms in on tight clusters of pins around you, out in open areas (scrolling the map pauses it 10 s)" aria-pressed="false">🔍</button>
-  <button class="icon" id="disc" type="button" title="Auto-discover: stand on a pin for 3 seconds and it is marked discovered (Live mode)" aria-pressed="false">✓</button>
+  <button class="icon" id="disc" type="button" title="Auto-discover: stand on a pin for 2 seconds and it is marked discovered (Live mode)" aria-pressed="false">✓</button>
   <button class="icon" id="prog" type="button" title="Progress: collected / total per type, and this session" aria-pressed="false">📊</button>
   <button class="icon" id="round" type="button" title="Round minimap that turns with your facing" aria-pressed="false">⭕</button>
   <button class="icon" id="prefsbtn" type="button" title="Settings" aria-expanded="false">⚙</button>
@@ -115,7 +115,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
   <select id="preset" aria-label="Markers"></select>
   <select id="profile" aria-label="Activity profile" title="Activity profile (Ctrl+Alt+P cycles): switches filters, range, zoom and pointer together"></select>
   <select id="target" aria-label="Point at" title="Pointer: arrow and distance to the nearest unmarked pin of this type"></select>
-  <select id="radius" aria-label="Auto-discover range" title="Auto-discover range: how close you must stay to a pin for 3 seconds"></select>
+  <select id="radius" aria-label="Auto-discover range" title="Auto-discover range: how close you must stay to a pin for 2 seconds"></select>
   <input id="opacity" type="range" min="20" max="100" step="5" aria-label="Opacity">
   <span class="op" id="opv"></span>
 </div>
@@ -143,7 +143,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
 </div>
 <div class="foot">
   <a href="https://archeagechronicles.th.gl/" id="credit">ArcheAge Chronicles Interactive Map</a> by The Hidden Gaming Lair
-  <span id="discst" title="Auto-discover: nearest uncollected pin. Stay within range for 3 s to mark it" hidden></span>
+  <span id="discst" title="Auto-discover: nearest uncollected pin. Stay within range for 2 s to mark it" hidden></span>
   <span id="ads" title="Ads and trackers blocked (Brave's ad-block engine with EasyList)" hidden></span>
   <span class="keys">Alt+L lock · Ctrl+Alt+ M hide · H bars · P profile · ↑↓ opacity</span>
   <div class="grip" id="grip" title="Drag to resize"></div>

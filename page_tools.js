@@ -146,10 +146,11 @@
     try { c = w.projectAt(w.center, 0); } catch (e) { return; }
     if (!c || !Number.isFinite(c.x)) return;
 
-    // distances (in zoom-0 map pixels) to every visible pin; keep the nearest few
+    // distances (in zoom-0 map pixels) to the nearest few pins still to discover;
+    // discovered ones are skipped so the view widens to show what is left around you
     const best = [];
     for (const p of m.markers.getInstances()) {
-      if (m.markers.isHidden(p) || !p.latLng) continue;
+      if (m.markers.isHidden(p) || !p.latLng || p.isDiscovered) continue;
       // zoom-0 map position; cached per pin, refreshed if the pin moves
       let q = p.__aaoPos;
       if (!q || q.ll !== p.latLng || q.a !== p.latLng[0] || q.b !== p.latLng[1]) {
@@ -176,10 +177,10 @@
     w.targetZoom = next; // TH.GL's engine animates to targetZoom
   }
 
-  // ---- auto discover: stand on a pin for 3 s and it is marked discovered ----
+  // ---- auto discover: stand on a pin for 2 s and it is marked discovered ----
   // Uses your live position from the TH.GL app (Peer Link) and TH.GL's own
   // "auto discovered" list, so it shows and syncs like the app's own marks.
-  const DWELL_MS = 3000;     // how long you must stay on it
+  const DWELL_MS = 2000;     // how long you must stay on it
   let RADIUS = 800;          // game units (cm): within 8 m counts as "on it"; set from the overlay's top bar
   let discoverOn = false, discTimer = 0, peersRef = null, markFn = null, meId = '', meAt = 0, lastStatus = 0, peersSearchAt = 0;
   const near = new Map();    // pin id -> time you came within RADIUS
