@@ -293,6 +293,9 @@
 
   // ---- companion loop: movement, walked distance, target pointer, progress ---------
   let targetKeys = [], targetLabel = '', walkedCm = 0, lastPos = null, lastProgress = 0, guide = null;
+  const EDGE_COUNT = 6;      // edge markers: the nearest few targets beyond the map's edge
+  let edgeTargets = [];      // [{to: latLng, d: metres}], nearest first
+  let testHoldUntil = 0;
   const targetMatch = key => !!key && targetKeys.some(k => k.endsWith('*') ? key.startsWith(k.slice(0, -1)) : k === key);
   function findStore(test) { return walkFibers(s => s && typeof s === 'object' && test(s) ? s : null); }
 
@@ -324,13 +327,19 @@
     if (!m || window.parent === window) return;
 
     // nearest unmarked pin of the chosen types
-    if (targetKeys.length) {
+    if (now < testHoldUntil) { /* troubleshooting guide is showing */ }
+    else if (targetKeys.length) {
       let best = null, bd = Infinity;
+      const near = []; // nearest few, for the edge markers
       if (me) for (const p of m.markers.getInstances()) {
         if (!p.latLng || p.isDiscovered || !targetMatch(p.key) || m.markers.isHidden(p)) continue;
         const d = Math.hypot(p.latLng[0] - me.x, p.latLng[1] - me.y);
         if (d < bd) { bd = d; best = p; }
+        if (near.length < 24 || d < near[near.length - 1].d) {
+          near.push({to: p.latLng, d}); near.sort((a, b) => a.d - b.d); if (near.length > 24) near.pop();
+        }
       }
+      edgeTargets = near.map(t => ({to: t.to, d: t.d / 100}));
       if (best) {
         let angle = 0, compass = '';
         try {
@@ -348,6 +357,7 @@
     } else {
       guide = null;
     }
+    if (!guide && now >= testHoldUntil) edgeTargets = [];
 
     // collection progress for the pin types on this map (every 3 s)
     if (now - lastProgress > 3000) {
@@ -374,7 +384,8 @@
       + '<g filter="url(#aaoglow)"><line id="aaoline" stroke="#ff8a4c" stroke-width="3" stroke-dasharray="9 7" stroke-linecap="round"/>'
       + '<circle id="aaoring" r="13" fill="none" stroke="#ff8a4c" stroke-width="3"/>'
       + '<path id="aaoedge" fill="#ff8a4c" stroke="#1b1209" stroke-width="1.5"/>'
-      + '<text id="aaolabel" fill="#fff" font-size="12" font-weight="600" font-family="Segoe UI,sans-serif" text-anchor="middle"></text></g>';
+      + '<text id="aaolabel" fill="#fff" font-size="12" font-weight="600" font-family="Segoe UI,sans-serif" text-anchor="middle"></text></g>'
+      + '<g id="aaopips" filter="url(#aaoglow)" font-family="Segoe UI,sans-serif" font-size="10" font-weight="600" text-anchor="middle"></g>';
     document.body.appendChild(svg);
     return svg;
   }
@@ -411,9 +422,45 @@
     const dist = guide.d < 1000 ? `${Math.round(guide.d)} m` : `${(guide.d / 1000).toFixed(1)} km`;
     label.textContent = dist;
     label.setAttribute('x', inside ? x2 : ex - Math.cos(ang) * 22); label.setAttribute('y', (inside ? y2 - 18 : ey - Math.sin(ang) * 22 + 4));
+    drawEdgePips(g, w, cLL, ox, oy, x1, y1, {minX, maxX, minY, maxY}, inside ? null : [ex, ey]);
+  }
+
+  // ---- edge markers: like a compass around the map's border. Each of the nearest few targets
+  // that is off the map gets a small arrow where its direction from you meets the edge ----
+  function drawEdgePips(g, w, cLL, ox, oy, x1, y1, box, guideAt) {
+    const holder = g.querySelector('#aaopips');
+    const placed = guideAt ? [guideAt] : [];
+    let html = '', shown = 0;
+    // the edge frame sits a little outside the guide arrow's so they do not collide
+    const minX = box.minX - 10, maxX = box.maxX + 10, minY = box.minY - 10, maxY = box.maxY + 10;
+    for (const t of edgeTargets) {
+      if (shown >= EDGE_COUNT) break;
+      let b; try { b = screenOffset(w, cLL, t.to); } catch (e) { continue; }
+      if (!b) continue;
+      const x2 = ox + b.x, y2 = oy + b.y;
+      if (x2 >= box.minX && x2 <= box.maxX && y2 >= box.minY && y2 <= box.maxY) continue; // on the map already
+      const dx = x2 - x1, dy = y2 - y1;
+      let k = Infinity;
+      if (dx) k = Math.min(k, dx > 0 ? (maxX - x1) / dx : (minX - x1) / dx);
+      if (dy) k = Math.min(k, dy > 0 ? (maxY - y1) / dy : (minY - y1) / dy);
+      if (!Number.isFinite(k) || k <= 0) continue;
+      const ex = x1 + dx * k, ey = y1 + dy * k;
+      if (placed.some(([px, py]) => Math.hypot(px - ex, py - ey) < 26)) continue; // keep them readable
+      placed.push([ex, ey]); shown++;
+      const ang = Math.atan2(dy, dx), s = 9;
+      const op = Math.max(0.55, 1 - shown * 0.09); // nearer = stronger
+      const tri = `M${ex + Math.cos(ang) * s},${ey + Math.sin(ang) * s} L${ex + Math.cos(ang + 2.4) * s},${ey + Math.sin(ang + 2.4) * s} L${ex + Math.cos(ang - 2.4) * s},${ey + Math.sin(ang - 2.4) * s}Z`;
+      const dist = t.d < 1000 ? `${Math.round(t.d)} m` : `${(t.d / 1000).toFixed(1)} km`;
+      const tw = dist.length * 5.6 + 8, lx = ex - Math.cos(ang) * (12 + tw / 2 * Math.abs(Math.cos(ang))), ly = ey - Math.sin(ang) * 17;
+      html += `<g opacity="${op.toFixed(2)}"><path d="${tri}" fill="#ffb347" stroke="#1b1209" stroke-width="1.4"/>`
+        + `<rect x="${(lx - tw / 2).toFixed(1)}" y="${(ly - 7.5).toFixed(1)}" width="${tw.toFixed(1)}" height="15" rx="7.5" fill="rgba(14,16,20,.82)"/>`
+        + `<text x="${lx.toFixed(1)}" y="${(ly + 3.6).toFixed(1)}" fill="#ffe2b8">${dist}</text></g>`;
+    }
+    holder.innerHTML = html;
   }
   (function guideLoop() { drawGuide(); setTimeout(guideLoop, guide ? 50 : 500); })();
-  window.__aaoGuide = g => { guide = g; }; // troubleshooting: draw a guide without live position
+  // troubleshooting: draw a guide (and edge markers) without live position, held for 15 s
+  window.__aaoGuide = (g, edges) => { guide = g; edgeTargets = edges || []; testHoldUntil = Date.now() + 15000; };
 
   // ---- activity profiles: switch TH.GL's filters --------------------------------------
   function filterStore() { return findStore(s => typeof s.setFilters === 'function' && Array.isArray(s.filters)); }
