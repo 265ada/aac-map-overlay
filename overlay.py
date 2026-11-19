@@ -12,6 +12,8 @@ Hotkeys (work while the game has focus):
   Ctrl+Alt+H      hide / show the top bars
   Ctrl+Alt+P      next activity profile (Manual, Gathering, Exploring)
 
+Only one copy runs at a time: launching it again while it is open does nothing.
+
 The overlay never reads or touches the game: it is only a window on top.
 Live position comes from TH.GL's own app through Peer Link.
 """
@@ -387,7 +389,28 @@ class Api:
         self._ov.window.destroy()
 
 
+_instance_lock = None
+
+
+def claim_single_instance(wait_ms=6000):
+    """True if this is the only running overlay. A second launch waits briefly (an update
+    relaunch can start before the old copy has finished closing) and then gives up."""
+    global _instance_lock
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateMutexW.restype = wt.HANDLE
+    k32.CreateMutexW.argtypes = [ctypes.c_void_p, wt.BOOL, wt.LPCWSTR]
+    k32.WaitForSingleObject.argtypes = [wt.HANDLE, wt.DWORD]
+    _instance_lock = k32.CreateMutexW(None, True, r"Local\AACMapOverlay.SingleInstance")
+    if not _instance_lock:
+        return True  # cannot tell; do not block startup
+    if ctypes.get_last_error() != 183:  # ERROR_ALREADY_EXISTS
+        return True
+    return k32.WaitForSingleObject(_instance_lock, wait_ms) in (0, 0x80)  # acquired / previous owner died
+
+
 def main():
+    if not claim_single_instance():
+        return  # another overlay is already running
     ov = Overlay()
     s = ov.s
     ov.window = webview.create_window(
