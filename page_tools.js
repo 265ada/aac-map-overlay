@@ -41,6 +41,7 @@
     + 'html.aao-clean div.fixed.z-500{opacity:0!important;pointer-events:none!important}'
     // locked: the map ignores the mouse entirely, so nothing opens or highlights on hover
     + 'html.aao-locked,html.aao-locked *{pointer-events:none!important}'
+    + 'html.aao-locked body>div.bg-popover{display:none!important}' // marker hover cards
     // TH.GL's "Update Ready!" tooltip: the overlay shows its own bar at the bottom instead
     + '[data-testid=new-version-label],[data-radix-popper-content-wrapper]:has([data-testid=new-version-label]){display:none!important}';
   let noHover = false, hovered = false, hoverTimer = 0;
@@ -77,6 +78,20 @@
     }
     const m = findMap();
     if (m && m.markers.hoveredMarkerId != null) m.markers.hoveredMarkerId = null;
+    closeHoverCards();
+  }
+  // TH.GL's marker card (name, type, coords, Codex link) lives in the map component's own
+  // state ({x, y, radius, items}), not in the selection store; clear it there.
+  function closeHoverCards() {
+    for (const el of document.querySelectorAll('body>div.bg-popover')) {
+      const k = Object.keys(el).find(k => k.startsWith('__reactFiber'));
+      for (let f = k && el[k], i = 0; f && i < 6; f = f.return, i++) {
+        for (let h = f.memoizedState, n = 0; h && typeof h === 'object' && 'next' in h && n < 40; h = h.next, n++) {
+          const v = h.memoizedState;
+          if (v && typeof v === 'object' && 'items' in v && 'radius' in v && h.queue && h.queue.dispatch) { h.queue.dispatch(null); i = 99; break; }
+        }
+      }
+    }
   }
   document.addEventListener('DOMContentLoaded', () => applyLockState(lockedNow));
 
