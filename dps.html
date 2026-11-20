@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AAC DPS Meter</title>
+<style>
+:root{--bg:#121519;--line:rgba(255,255,255,.09);--text:#e8ecf1;--muted:#8d96a3;--accent:#ffb347;--gold:#ffd27a;--ok:#5fd38d;--bad:#ff7a6b}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:12px/1.3 "Segoe UI",system-ui,sans-serif;overflow:hidden;user-select:none}
+.card{display:flex;flex-direction:column;height:100%;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+header{display:flex;align-items:center;gap:6px;padding:5px 6px 5px 9px;background:rgba(255,255,255,.035);border-bottom:1px solid var(--line)}
+header .t{white-space:nowrap;font-weight:700;letter-spacing:.08em;font-size:10px;color:var(--muted);text-transform:uppercase}
+header .beta{font-size:9px;color:var(--accent);border:1px solid rgba(255,179,71,.45);border-radius:6px;padding:0 4px}
+header .sp{flex:1;align-self:stretch}
+header .clock{font-variant-numeric:tabular-nums;color:var(--muted);font-size:11px}
+button{background:transparent;border:1px solid transparent;color:var(--muted);border-radius:5px;width:22px;height:20px;padding:0;font:inherit;font-size:12px;cursor:pointer;display:grid;place-items:center}
+button:hover{background:rgba(255,255,255,.08);color:var(--text)}
+button.rec.on{color:var(--bad)}
+main{flex:none;padding:7px 10px 2px;display:grid;grid-template-columns:1fr 1fr;gap:2px 10px}
+.lab{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.big{font:700 28px/1.05 Georgia,"Times New Roman",serif;font-variant-numeric:tabular-nums}
+.big.gold{color:var(--gold);text-align:right}
+.r{text-align:right}
+.sub{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sub b{color:var(--text);font-weight:600}
+#last{color:var(--ok)}
+svg{display:block;flex:none;width:calc(100% - 20px);height:30px;margin:2px 10px 4px}
+.foot{display:flex;justify-content:space-between;padding:0 10px 6px;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+#status{padding:0 10px 6px;font-size:10px;color:var(--muted);min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#status.err{color:var(--bad)}
+#hist{padding:0 10px 6px;display:none}
+#hist.on{display:block}
+#hist div{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
+#hist div b{color:var(--text);font-weight:600}
+body.locked button{display:none}
+body.locked header{background:transparent}
+</style>
+</head>
+<body>
+<div class="card">
+  <header class="pywebview-drag-region">
+    <span class="t">Damage · Solo</span><span class="beta" title="Reads the floating damage numbers on your screen, so totals are estimates">beta</span>
+    <span class="sp pywebview-drag-region"></span>
+    <span class="clock" id="clock">0:00</span>
+    <button type="button" id="hist-btn" title="Last fights">☰</button>
+    <button type="button" id="rec" class="rec" title="Record a 30 s sample of what the meter sees (helps tune it)">●</button>
+    <button type="button" id="reset" title="Reset">↺</button>
+    <button type="button" id="close" title="Hide the meter (Ctrl+Alt+D)">✕</button>
+  </header>
+  <main>
+    <div><div class="lab">DPS</div><div class="big" id="dps">0</div></div>
+    <div><div class="lab r">Total damage</div><div class="big gold" id="total">0</div><div class="sub r"><span id="last"></span></div></div>
+  </main>
+  <svg id="spark" viewBox="0 0 300 34" preserveAspectRatio="none" aria-label="Damage per second, last 30 seconds"></svg>
+  <div class="foot"><span>Hits <b id="hits">0</b></span><span>Last 5 s <b id="recent">0</b>/s</span><span>Biggest <b id="biggest">0</b></span></div>
+  <div id="hist"></div>
+  <div id="status">Waiting for damage numbers…</div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const api = () => (window.pywebview && window.pywebview.api) || null;
+const fmt = n => (n || 0).toLocaleString('en-US');
+const clock = s => { s = Math.round(s || 0); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+let lastTotal = 0;
+
+window.render = st => {
+  const f = st.fight;
+  $('dps').textContent = fmt(f ? f.dps : 0);
+  $('total').textContent = fmt(f ? f.total : 0);
+  $('hits').textContent = fmt(f ? f.hits : 0);
+  $('biggest').textContent = fmt(f ? f.biggest : 0);
+  $('recent').textContent = fmt(f && f.recentDps || 0);
+  $('clock').textContent = clock(f ? f.secs : 0);
+  if (f && f.total > lastTotal) { $('last').textContent = '+' + fmt(f.total - lastTotal); }
+  if (!f) $('last').textContent = '';
+  lastTotal = f ? f.total : 0;
+  // sparkline: damage per second over the last 30 s
+  const sp = st.spark || [], max = Math.max(1, ...sp);
+  $('spark').innerHTML = sp.map((v, i) => { const h = Math.round(30 * v / max); return `<rect x="${i * 10 + 1}" y="${33 - h}" width="8" height="${h}" rx="1.5" fill="${v ? '#ffb347' : 'rgba(255,255,255,.06)'}"/>`; }).join('');
+  $('hist').innerHTML = (st.history || []).map((h, i) => `<div><span>Fight ${i ? '-' + i : '(last)'} · ${clock(h.secs)}</span><span><b>${fmt(h.dps)}</b> dps · ${fmt(h.total)}</span></div>`).join('') || '<div><span>No finished fights yet</span></div>';
+  const s = $('status'); s.classList.toggle('err', !!st.error);
+  $('rec').classList.toggle('on', st.recording > 0);
+  s.textContent = st.error ? st.error
+    : st.recording > 0 ? `Recording sample… ${st.recording}s left (${st.recorded} frames). Keep hitting something.`
+    : st.recordPath && st.recorded ? `Sample saved: ${st.recorded} frames in ${st.recordPath}`
+    : !st.enabled ? 'Paused'
+    : st.waiting && !st.inFight ? st.waiting + (f ? '' : ' · waiting for damage numbers')
+    : st.inFight ? 'In combat' : (f ? 'Fight over · next hit starts a new one' : 'Waiting for damage numbers…');
+};
+window.onNative = st => { document.body.classList.toggle('locked', !!st.locked); };
+$('reset').onclick = () => api() && api().reset();
+$('rec').onclick = () => api() && api().record();
+$('close').onclick = () => api() && api().hide();
+$('hist-btn').onclick = () => $('hist').classList.toggle('on');
+window.addEventListener('pywebviewready', () => api().ready());
+</script>
+</body>
+</html>

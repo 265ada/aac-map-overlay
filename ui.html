@@ -105,6 +105,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
   <button class="icon" id="prefsbtn" type="button" title="Settings" aria-expanded="false">⚙</button>
   <button class="icon" id="filt" type="button" title="Choose markers" aria-expanded="false">☰</button>
   <button class="icon" id="lock" type="button" title="Lock: clicks go through to the game (Alt+L to unlock)">🔒</button>
+  <button class="icon" id="dpsbtn" type="button" title="Solo DPS meter (beta): reads the damage numbers on your screen. Ctrl+Alt+D" aria-pressed="false">⚔</button>
   <button class="icon" id="max" type="button" title="Maximize to this monitor (click again to go back)" aria-pressed="false">⛶</button>
   <button class="icon" id="hide" type="button" title="Hide (Ctrl+Alt+M to show)">–</button>
   <button class="icon" id="quit" type="button" title="Close the overlay">✕</button>
@@ -202,6 +203,7 @@ function src(){
   return `${BASE}/embed/maps/${encodeURIComponent(S.map)}${q}`;
 }
 function load(){
+  onDps(!!S.dps);
   document.body.classList.toggle('live', !!S.live);
   document.body.classList.toggle('newlive', !!S.live && !S.liveSeen);
   $('live').setAttribute('aria-pressed', !!S.live);
@@ -380,6 +382,9 @@ $('max').onclick = async () => {
   $('max').title = on ? 'Back to the previous size' : 'Maximize to this monitor (click again to go back)';
 };
 $('quit').onclick = () => api() && api().quit();
+function onDps(on){ S.dps = !!on; $('dpsbtn').setAttribute('aria-pressed', !!on); }
+window.onDps = onDps;
+$('dpsbtn').onclick = async () => { if (api()) onDps(await api().toggle_dps()); };
 $('credit2').onclick = e => { e.preventDefault(); api() ? api().open_url($('credit').href) : open($('credit').href); };
 $('credit').onclick = e => { e.preventDefault(); api() ? api().open_url($('credit').href) : open($('credit').href); };
 

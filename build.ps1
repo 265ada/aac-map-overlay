@@ -14,6 +14,8 @@ Write-Host "Building AAC Map Overlay $version"
   --icon assets\icon.ico `
   --add-data "ui.html;." `
   --add-data "page_tools.js;." `
+  --add-data "dps.html;." `
+  --collect-submodules winrt `
   --collect-all webview `
   --collect-all adblock `
   overlay.py

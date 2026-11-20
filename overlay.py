@@ -11,6 +11,7 @@ Hotkeys (work while the game has focus):
   Ctrl+Alt+Down   more transparent
   Ctrl+Alt+H      hide / show the top bars
   Ctrl+Alt+P      next activity profile (Manual, Gathering, Exploring)
+  Ctrl+Alt+D      show / hide the solo DPS meter (beta)
 
 Only one copy runs at a time: launching it again while it is open does nothing.
 
@@ -31,6 +32,7 @@ import webview
 
 import updater
 from adblock_hook import AdBlocker
+from dps_meter import DpsMeter
 from version import __version__
 
 HERE = pathlib.Path(__file__).parent
@@ -38,10 +40,12 @@ RES = pathlib.Path(getattr(sys, "_MEIPASS", HERE))  # bundled files when package
 CFG_DIR = pathlib.Path(os.environ.get("APPDATA", HERE)) / "AACMapOverlay"
 CFG = CFG_DIR / "settings.json"
 TITLE = "AAC Map Overlay"
+DPS_TITLE = "AAC DPS Meter"
 PORT = 47853  # fixed, so the map's saved Peer Link settings survive restarts
 DEFAULTS = {"map": "Auroria", "preset": "collect", "types": [], "live": False, "liveSeen": False, "adblock": True, "autoZoom": True, "autoDiscover": True, "discRadius": 8, "autoUpdate": True, "barsHidden": False, "locked": False, "profile": "manual", "target": "", "sound": True,
             "autoHide": True, "lowPower": True, "round": False, "showProgress": False, "manualFilters": None, "opacity": 0.9,
-            "x": 40, "y": 120, "w": 460, "h": 560}
+            "x": 40, "y": 120, "w": 460, "h": 560,
+            "dps": False, "dpsX": 520, "dpsY": 120, "dpsW": 300, "dpsH": 232}
 
 user32 = ctypes.windll.user32
 user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
@@ -67,7 +71,7 @@ user32.MonitorFromWindow.restype = wt.HMONITOR
 user32.MonitorFromWindow.argtypes = [wt.HWND, wt.DWORD]
 MONITOR_DEFAULTTONEAREST = 2
 SWP_NOZORDER, SWP_NOACTIVATE = 0x0004, 0x0010
-VK = {"M": 0x4D, "L": 0x4C, "H": 0x48, "P": 0x50, "UP": 0x26, "DOWN": 0x28}
+VK = {"M": 0x4D, "L": 0x4C, "H": 0x48, "P": 0x50, "D": 0x44, "UP": 0x26, "DOWN": 0x28}
 
 
 def load_settings():
@@ -88,6 +92,8 @@ class Overlay:
         self.max_from = None  # window rect (screen pixels) before maximizing
         self.auto_hidden = False
         self.force_show = False
+        self.dps_window = None
+        self.meter = DpsMeter(self.dps_report, CFG_DIR / "dps-samples")
 
     # ---- native window helpers -------------------------------------------
     def hwnd(self):
@@ -96,7 +102,14 @@ class Overlay:
         except Exception:
             return user32.FindWindowW(None, TITLE)
 
+    def dps_hwnd(self):
+        try:
+            return int(self.dps_window.native.Handle.ToInt64())
+        except Exception:
+            return user32.FindWindowW(None, DPS_TITLE)
+
     def apply_style(self):
+        self.apply_dps_style()
         h = self.hwnd()
         if not h:
             return
@@ -112,6 +125,49 @@ class Overlay:
         else:
             user32.SetLayeredWindowAttributes(h, 0, alpha, LWA_ALPHA)
 
+    def apply_dps_style(self):
+        """The meter window follows the overlay's lock: locked = clicks go through to the game."""
+        h = self.dps_window and self.dps_hwnd()
+        if not h:
+            return
+        ex = user32.GetWindowLongPtrW(h, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TOOLWINDOW
+        if self.locked:
+            ex |= WS_EX_TRANSPARENT | WS_EX_NOACTIVATE
+        else:
+            ex &= ~(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE)
+        user32.SetWindowLongPtrW(h, GWL_EXSTYLE, ex)
+        user32.SetLayeredWindowAttributes(h, 0, int(255 * max(0.5, min(1.0, self.s["opacity"]))), LWA_ALPHA)
+
+    # ---- solo DPS meter (separate window) ------------------------------------
+    def dps_report(self, state):
+        if self.dps_window and self.s.get("dps"):
+            self.dps_window.evaluate_js(f"window.render && render({json.dumps(state)})")
+
+    def toggle_dps(self, on=None):
+        on = (not self.s.get("dps")) if on is None else bool(on)
+        self.s["dps"] = on
+        self.save()
+        self.meter.set_enabled(on)
+        if not self.dps_window:
+            return on
+        if on and not self.auto_hidden:
+            self.dps_window.show()
+            self.apply_dps_style()
+            self.dps_window.evaluate_js(f"window.onNative && onNative({json.dumps({'locked': self.locked})})")
+        elif not on:
+            self.dps_window.hide()
+        if self.window:
+            self.window.evaluate_js(f"window.onDps && onDps({json.dumps(on)})")
+        return on
+
+    def on_dps_moved(self, x, y):
+        self.s["dpsX"], self.s["dpsY"] = x, y
+        self.save()
+
+    def on_dps_resized(self, w, h):
+        self.s["dpsW"], self.s["dpsH"] = w, h
+        self.save()
+
     def save(self):
         try:
             CFG_DIR.mkdir(parents=True, exist_ok=True)
@@ -122,6 +178,8 @@ class Overlay:
     def tell_ui(self):
         if self.window:
             self.window.evaluate_js(f"window.onNative && onNative({json.dumps({'locked': self.locked, 'opacity': self.s['opacity']})})")
+        if self.dps_window and self.s.get("dps"):
+            self.dps_window.evaluate_js(f"window.onNative && onNative({json.dumps({'locked': self.locked})})")
 
     # ---- actions shared by hotkeys and the UI ----------------------------
     def set_lock(self, on):
@@ -192,9 +250,13 @@ class Overlay:
                 if not want and not self.auto_hidden:
                     self.auto_hidden = True
                     self.window.hide()
+                    if self.dps_window and self.s.get("dps"):
+                        self.dps_window.hide()
                 elif want and self.auto_hidden:
                     self.auto_hidden = False
                     self.window.show()
+                    if self.dps_window and self.s.get("dps"):
+                        self.dps_window.show()
                     self.apply_style()
             except Exception as e:
                 print("auto-hide error:", e)
@@ -212,7 +274,8 @@ class Overlay:
                 3: ("UP", lambda: self.set_opacity(self.s["opacity"] + 0.1)),
                 4: ("DOWN", lambda: self.set_opacity(self.s["opacity"] - 0.1)),
                 5: ("H", self.toggle_bars),
-                6: ("P", lambda: self.window.evaluate_js("window.cycleProfile && cycleProfile()"))}
+                6: ("P", lambda: self.window.evaluate_js("window.cycleProfile && cycleProfile()")),
+                7: ("D", self.toggle_dps)}
         for i, (k, _, *mods) in keys.items():
             mod = mods[0] if mods else ctrl_alt
             if not user32.RegisterHotKey(None, i, mod | MOD_NOREPEAT, VK[k]):
@@ -265,6 +328,8 @@ class Overlay:
         threading.Thread(target=self.hook_webview, daemon=True).start()
         threading.Thread(target=self.update_loop, daemon=True).start()
         threading.Thread(target=self.autohide_loop, daemon=True).start()
+        if self.s.get("dps"):
+            self.meter.set_enabled(True)
 
     # ---- updates (GitHub Releases) -----------------------------------------
     def update_loop(self):
@@ -388,6 +453,31 @@ class Api:
     def quit(self):
         self._ov.window.destroy()
 
+    def toggle_dps(self):
+        return self._ov.toggle_dps()
+
+
+class DpsApi:
+    """Functions the DPS meter window can call."""
+
+    def __init__(self, ov):
+        self._ov = ov
+
+    def ready(self):
+        ov = self._ov
+        ov.apply_dps_style()
+        ov.dps_window.evaluate_js(f"window.onNative && onNative({json.dumps({'locked': ov.locked})})")
+        ov.dps_report(ov.meter.state())
+
+    def reset(self):
+        self._ov.meter.reset()
+
+    def record(self):
+        return self._ov.meter.record_sample(30)
+
+    def hide(self):
+        self._ov.toggle_dps(False)
+
 
 _instance_lock = None
 
@@ -419,6 +509,13 @@ def main():
     ov.window.events.shown += ov.on_shown
     ov.window.events.moved += ov.on_moved
     ov.window.events.resized += ov.on_resized
+    ov.dps_window = webview.create_window(
+        DPS_TITLE, str(RES / "dps.html"), js_api=DpsApi(ov), x=s["dpsX"], y=s["dpsY"], width=s["dpsW"], height=s["dpsH"],
+        frameless=True, easy_drag=False, on_top=True, resizable=True, hidden=not s.get("dps"), background_color="#121519",
+        min_size=(230, 150))
+    ov.dps_window.events.moved += ov.on_dps_moved
+    ov.dps_window.events.resized += ov.on_dps_resized
+    ov.dps_window.events.shown += ov.apply_dps_style
     webview.start(http_server=True, http_port=PORT, private_mode=False, storage_path=str(CFG_DIR / "webview"))
 
 

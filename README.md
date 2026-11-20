@@ -55,6 +55,7 @@ The overlay looks like a plain map: its bars and footer, and TH.GL's map buttons
 | 🎯 Pointer | Pick a target (nearest collectible, boss, dungeon, Nui, resource, ore, plants, trees, or one type like Coilstones). A dashed guide line runs from you to it on the map, with an arrow at the edge when it's off-screen. The next nearest ones beyond the map's edge get small compass arrows with their distance along the border, so you can see which way the others are. An arrow and distance at the bottom of the map point to the nearest unmarked one, for example "Raeven's Coilstone · 140 m NE", even while the overlay is locked |
 | 📊 Progress | Collected / total for every collectible and resource type the map shows, plus this session: time played, distance walked and what you marked |
 | 🧭 Profiles | **Gathering** (resources on, 12 m range, closer zoom, pointer to the nearest resource) and **Exploring** (collectibles on, 8 m range, wider zoom, pointer to the nearest collectible). **Manual** puts your own filters, pointer and range back. **Ctrl+Alt+P** cycles them |
+| ⚔ DPS meter (beta) | A separate small window with your damage per second, total damage, hits, biggest hit, a 30-second chart and your last fights. It reads the floating damage numbers on your screen with Windows' built-in text recognition, so it is **solo only and an estimate**: overlapping numbers can be missed, and numbers from other players next to your target can be counted. It never reads the game's memory or network traffic. A fight ends after 8 seconds without a hit. **●** records 30 seconds of what it sees (saved to `%APPDATA%\AACMapOverlay\dps-samples`) to help tune it. Toggle with **⚔** or **Ctrl+Alt+D**; it follows the overlay's lock and auto-hide |
 | ⭕ Round map | A round minimap that turns with your facing; the corners are see-through |
 | ⚙ Settings | Sound when an unmarked pin comes in range; show the overlay only while the game is running and in front (Ctrl+Alt+M shows it anyway, for example to look at the map without the game); low-power drawing while you stand still (all on by default) |
 | 🛡 Ad blocking | Brave's ad-block engine with EasyList and EasyPrivacy, refreshed weekly. The footer counts what was blocked. Turn it off with `"adblock": false` in settings.json |
@@ -72,6 +73,7 @@ The overlay looks like a plain map: its bars and footer, and TH.GL's map buttons
 | **Alt+L** | Lock / unlock. Locking hides every bar (map only, clicks go to the game); unlocking brings the bars back. The overlay reopens locked or unlocked, the way you left it |
 | **Ctrl+Alt+H** | Hide / show the top bars. While they're hidden, drag the thin strip at the top edge to move the window |
 | **Ctrl+Alt+P** | Next activity profile (Manual → Gathering → Exploring) |
+| **Ctrl+Alt+D** | Show / hide the DPS meter |
 | **Ctrl+Alt+↑ / ↓** | More / less opaque |
 
 TH.GL's Filters panel starts closed each time the overlay opens. Drag the title to move the window and the corner grip to resize it. Settings (map, markers, opacity,
@@ -121,6 +123,7 @@ pick it up on their next start.
 | `overlay.py` | The window, hotkeys, settings and update checks |
 | `ui.html` | The overlay's controls around the map |
 | `page_tools.js` | Runs inside TH.GL's map: smart zoom, auto-discover, header hiding |
+| `dps_meter.py`, `dps.html` | Solo DPS meter: screen reader and its window |
 | `adblock_hook.py` | Ad and tracker blocking for the overlay's browser |
 | `updater.py`, `version.py` | Update checks against GitHub Releases |
 | `installer.iss`, `build.ps1`, `.github/workflows/release.yml` | Packaging and releases |
