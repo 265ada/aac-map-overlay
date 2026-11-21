@@ -45,6 +45,8 @@ Type: filesandordirs; Name: "{app}\_internal"
 
 [Icons]
 Name: "{group}\AAC Map Overlay"; Filename: "{app}\AACMapOverlay.exe"
+Name: "{group}\AAC Map Overlay - Bring back & unlock"; Filename: "{app}\AACMapOverlay.exe"; Parameters: "--rescue"; Comment: "Shows and unlocks the overlay in the middle of your main screen"
+Name: "{group}\AAC Map Overlay - Settings"; Filename: "{app}\AACMapOverlay.exe"; Parameters: "--settings"; Comment: "Shows the overlay unlocked with its settings open"
 Name: "{group}\Uninstall AAC Map Overlay"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\AAC Map Overlay"; Filename: "{app}\AACMapOverlay.exe"; Tasks: desktopicon
 

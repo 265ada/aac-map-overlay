@@ -76,6 +76,13 @@ The overlay looks like a plain map: its bars and footer, and TH.GL's map buttons
 | **Ctrl+Alt+D** | Show / hide the DPS meter |
 | **Ctrl+Alt+↑ / ↓** | More / less opaque |
 
+### Can't see or unlock the overlay?
+
+- **Tray icon:** right-click the AAC Map Overlay icon in the notification area (Windows may tuck it behind the **^** arrow; drag it onto the taskbar to keep it handy). It has **Unlock**, **Bring back to main screen & unlock**, **Settings…**, show/hide, the DPS meter, *Only show while the game is in front*, **Check for updates** and **Quit**. Double-click the icon to bring the overlay back.
+- **Start menu:** *AAC Map Overlay - Bring back & unlock* and *AAC Map Overlay - Settings*. Opening the overlay again while it runs also brings it back, unlocked.
+- If the screen it was on is unplugged or moved, it opens in the middle of your main screen, unlocked.
+- If another program already uses your lock key, the tray icon tells you; pick another key in **⚙ → Lock / unlock key**.
+
 TH.GL's Filters panel starts closed each time the overlay opens. Drag the title to move the window and the corner grip to resize it. Settings (map, markers, opacity,
 position, size and the toggles above) are saved in `%APPDATA%\AACMapOverlay\settings.json`.
 

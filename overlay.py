@@ -13,7 +13,9 @@ Hotkeys (work while the game has focus):
   Ctrl+Alt+P      next activity profile (Manual, Gathering, Exploring)
   Ctrl+Alt+D      show / hide the solo DPS meter (beta)
 
-Only one copy runs at a time: launching it again while it is open does nothing.
+Only one copy runs at a time. Opening it again while it runs brings the running one back:
+shown, unlocked and on a screen you can see (Start menu "Settings" also opens the settings).
+The tray icon (notification area) has the same rescue actions on right-click.
 
 The overlay never reads or touches the game: it is only a window on top.
 Live position comes from TH.GL's own app through Peer Link.
@@ -33,6 +35,7 @@ import webview
 import updater
 from adblock_hook import AdBlocker
 from dps_meter import DpsMeter
+from tray import Tray
 from version import __version__
 
 HERE = pathlib.Path(__file__).parent
@@ -61,6 +64,9 @@ GAME_EXE = "archeagechronicles.exe"
 MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT = 0x1, 0x2, 0x4, 0x4000
 WM_HOTKEY = 0x0312
 WM_APP_LOCKKEY = 0x8001  # tells the hotkey thread to swap the lock key
+WM_APP_COMMAND = 0x8002  # a second launch asks the running overlay to do something (wParam = command)
+CMD_SHOW, CMD_RESCUE, CMD_SETTINGS = 1, 2, 3
+INSTANCE = CFG_DIR / "instance.json"  # pid + hotkey thread id of the running overlay
 DEFAULT_LOCK_KEY = {"mods": MOD_ALT, "vk": 0x4C, "label": "Alt+L"}
 class RECT(ctypes.Structure):
     _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
@@ -72,9 +78,34 @@ class MONITORINFO(ctypes.Structure):
 
 user32.MonitorFromWindow.restype = wt.HMONITOR
 user32.MonitorFromWindow.argtypes = [wt.HWND, wt.DWORD]
+user32.MonitorFromPoint.restype = wt.HMONITOR
+user32.MonitorFromPoint.argtypes = [wt.POINT, wt.DWORD]
 MONITOR_DEFAULTTONEAREST = 2
 SWP_NOZORDER, SWP_NOACTIVATE = 0x0004, 0x0010
 VK = {"M": 0x4D, "L": 0x4C, "H": 0x48, "P": 0x50, "D": 0x44, "UP": 0x26, "DOWN": 0x28}
+
+
+def on_a_screen(x, y, w, h):
+    """True if the middle of the top strip of this rectangle is on a connected monitor."""
+    return bool(user32.MonitorFromPoint(wt.POINT(int(x + w / 2), int(y + 12)), 0))  # 0 = MONITOR_DEFAULTTONULL
+
+
+def primary_work_area():
+    mi = MONITORINFO()
+    mi.cbSize = ctypes.sizeof(MONITORINFO)
+    user32.GetMonitorInfoW(user32.MonitorFromPoint(wt.POINT(0, 0), 1), ctypes.byref(mi))  # 1 = PRIMARY
+    w = mi.rcWork
+    return w.left, w.top, w.right - w.left, w.bottom - w.top
+
+
+def fit_on_screen(s, kx, ky, kw, kh, dw, dh):
+    """Move a saved window rectangle onto the main screen if its monitor is gone."""
+    if on_a_screen(s[kx], s[ky], s[kw], s[kh]):
+        return False
+    l, t, w, h = primary_work_area()
+    s[kw], s[kh] = min(s[kw] or dw, w - 40), min(s[kh] or dh, h - 40)
+    s[kx], s[ky] = l + (w - s[kw]) // 2, t + (h - s[kh]) // 2
+    return True
 
 
 def load_settings():
@@ -97,6 +128,8 @@ class Overlay:
         self.force_show = False
         self.dps_window = None
         self.hotkey_tid = 0
+        self.tray = None
+        self.lock_key_taken = False
         self.pending_lock_key = None
         self.meter = DpsMeter(self.dps_report, CFG_DIR / "dps-samples")
 
@@ -199,6 +232,93 @@ class Overlay:
         self.apply_style()
         self.save()
         self.tell_ui()
+
+    def hide_overlay(self):
+        self.visible = False
+        self.force_show = False
+        self.window.hide()
+
+    def rescue(self, move=False, settings=False):
+        """Bring the overlay back: shown (even with the game in the background), unlocked and on a
+        screen you can see. move=True always puts it in the middle of the main screen."""
+        h = self.hwnd()
+        if self.max_from and h:
+            self.toggle_max()
+        if h:
+            r = RECT()
+            user32.GetWindowRect(h, ctypes.byref(r))
+            w, hh = r.right - r.left, r.bottom - r.top
+            if move or not on_a_screen(r.left, r.top, w, hh) or w < 200 or hh < 150:
+                l, t, sw, sh = primary_work_area()
+                w = max(300, min(w if w >= 200 else 460, sw - 40))
+                hh = max(260, min(hh if hh >= 150 else 560, sh - 40))
+                user32.SetWindowPos(h, None, l + (sw - w) // 2, t + (sh - hh) // 2, w, hh, SWP_NOZORDER | SWP_NOACTIVATE)
+        self.visible = True
+        self.auto_hidden = False
+        self.force_show = True  # stays up until the game is in front again
+        self.window.show()
+        self.set_lock(False)
+        if self.dps_window and self.s.get("dps"):
+            dh = self.dps_hwnd()
+            r = RECT()
+            if dh and user32.GetWindowRect(dh, ctypes.byref(r)) and (move or not on_a_screen(r.left, r.top, r.right - r.left, r.bottom - r.top)):
+                l, t, sw, sh = primary_work_area()
+                user32.SetWindowPos(dh, None, l + sw // 2 + 250, t + sh // 2 - 120, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE)
+            self.dps_window.show()
+        if settings:
+            self.window.evaluate_js("window.openPrefs && openPrefs()")
+
+    def toggle_autohide(self):
+        self.s["autoHide"] = not self.s.get("autoHide")
+        self.save()
+        self.window.evaluate_js(f"window.onAutoHide && onAutoHide({json.dumps(self.s['autoHide'])})")
+
+    def check_updates_now(self):
+        try:
+            info = updater.check()
+        except Exception as e:
+            self.tray.balloon("Update check failed", str(e)[:200])
+            return
+        if info:
+            self.update = info
+            self.tray.balloon("Updating", f"Installing version {info['version']}...")
+            self.install_update()
+        else:
+            self.tray.balloon("AAC Map Overlay", f"You're on the latest version ({__version__}).")
+
+    def quit(self):
+        try:
+            if self.tray:
+                self.on_ui(self.tray.remove)
+        except Exception:
+            pass
+        self.window.destroy()
+
+    def run_command(self, cmd):
+        """A second launch of the app asked for something (see main())."""
+        if cmd == CMD_SETTINGS:
+            self.rescue(settings=True)
+        elif cmd == CMD_RESCUE:
+            self.rescue(move=True)
+        else:
+            self.rescue()
+
+    def start_tray(self):
+        icon = RES / "assets" / "icon.ico"
+        if not icon.exists():
+            icon = HERE / "assets" / "icon.ico"
+        self.tray = Tray(self, __version__, str(icon))
+        for _ in range(100):
+            try:
+                if self.on_ui(self.tray.create):
+                    time.sleep(3)
+                    if self.lock_key_taken:
+                        self.tray.balloon("Lock key not available", f"{self.lock_key()['label']} is used by another program. "
+                                          "Right-click this icon to unlock, and pick another key in Settings.")
+                    return
+            except Exception as e:
+                print("tray not ready:", e)
+            time.sleep(0.2)
 
     def toggle_visible(self):
         if self.auto_hidden and self.visible:
@@ -319,6 +439,11 @@ class Overlay:
 
     def hotkeys(self):
         self.hotkey_tid = ctypes.windll.kernel32.GetCurrentThreadId()
+        try:  # lets a second launch find us (it posts WM_APP_COMMAND to this thread)
+            CFG_DIR.mkdir(parents=True, exist_ok=True)
+            INSTANCE.write_text(json.dumps({"pid": os.getpid(), "tid": self.hotkey_tid}), encoding="utf-8")
+        except OSError:
+            pass
         ctrl_alt = MOD_CONTROL | MOD_ALT
         lk = self.lock_key()
         keys = {1: ("M", self.toggle_visible), 2: (lk["vk"], lambda: self.set_lock(not self.locked), lk["mods"]),
@@ -331,8 +456,13 @@ class Overlay:
             mod = mods[0] if mods else ctrl_alt
             if not user32.RegisterHotKey(None, i, mod | MOD_NOREPEAT, VK[k] if isinstance(k, str) else k):
                 print(f"Could not register hotkey {k} (mods {mod}): another app is using it.")
+                if i == 2:
+                    self.lock_key_taken = True
         msg = wt.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+            if msg.message == WM_APP_COMMAND:
+                threading.Thread(target=self.run_command, args=(int(msg.wParam),), daemon=True).start()
+                continue
             if msg.message == WM_APP_LOCKKEY:
                 try:
                     self._swap_lock_key()
@@ -385,6 +515,7 @@ class Overlay:
         threading.Thread(target=self.hook_webview, daemon=True).start()
         threading.Thread(target=self.update_loop, daemon=True).start()
         threading.Thread(target=self.autohide_loop, daemon=True).start()
+        threading.Thread(target=self.start_tray, daemon=True).start()
         if self.s.get("dps"):
             self.meter.set_enabled(True)
 
@@ -508,7 +639,7 @@ class Api:
         self._ov.toggle_visible()
 
     def quit(self):
-        self._ov.window.destroy()
+        self._ov.quit()
 
     def toggle_dps(self):
         return self._ov.toggle_dps()
@@ -561,17 +692,39 @@ def claim_single_instance(wait_ms=6000):
     return k32.WaitForSingleObject(_instance_lock, wait_ms) in (0, 0x80)  # acquired / previous owner died
 
 
+def tell_running_overlay(cmd):
+    """Ask the overlay that is already running to do cmd. True if it got the message."""
+    try:
+        info = json.loads(INSTANCE.read_text(encoding="utf-8"))
+        return bool(user32.PostThreadMessageW(int(info["tid"]), WM_APP_COMMAND, cmd, 0))
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 def main():
-    if not claim_single_instance():
-        return  # another overlay is already running
+    args = [a.lower() for a in sys.argv[1:]]
+    cmd = CMD_SETTINGS if "--settings" in args else CMD_RESCUE if "--rescue" in args else CMD_SHOW
+    if not claim_single_instance(wait_ms=0):
+        if tell_running_overlay(cmd):
+            return  # the running overlay brings itself back
+        if not claim_single_instance():  # e.g. an update relaunch while the old copy closes
+            return
     ov = Overlay()
     s = ov.s
+    moved = fit_on_screen(s, "x", "y", "w", "h", 460, 560)  # its monitor was unplugged or rearranged
+    if fit_on_screen(s, "dpsX", "dpsY", "dpsW", "dpsH", 300, 232):
+        s["dpsX"] += 260
+    if moved or cmd != CMD_SHOW:
+        s["locked"] = False  # came back from somewhere you couldn't reach, or asked for it: unlocked
+        ov.locked = False
     ov.window = webview.create_window(
         TITLE, str(RES / "ui.html"), js_api=Api(ov), x=s["x"], y=s["y"], width=s["w"], height=s["h"],
         frameless=True, easy_drag=False, on_top=True, resizable=True, background_color="#14171c")
     ov.window.events.shown += ov.on_shown
     ov.window.events.moved += ov.on_moved
     ov.window.events.resized += ov.on_resized
+    if cmd == CMD_SETTINGS:
+        ov.window.events.loaded += lambda: ov.window.evaluate_js("setTimeout(() => window.openPrefs && openPrefs(), 800)")
     ov.dps_window = webview.create_window(
         DPS_TITLE, str(RES / "dps.html"), js_api=DpsApi(ov), x=s["dpsX"], y=s["dpsY"], width=s["dpsW"], height=s["dpsH"],
         frameless=True, easy_drag=False, on_top=True, resizable=True, hidden=not s.get("dps"), background_color="#121519",

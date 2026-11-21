@@ -358,6 +358,8 @@ $('round').onclick = () => { setRound(!S.round); tellMap(); persist(); };
 
 // ---- settings panel -----------------------------------------------------------------------
 $('prefsbtn').onclick = () => { const o = $('prefs').classList.toggle('open'); $('prefsbtn').setAttribute('aria-expanded', o); };
+window.openPrefs = () => { $('prefs').classList.add('open'); $('prefsbtn').setAttribute('aria-expanded', true); };
+window.onAutoHide = on => { S.autoHide = !!on; const c = $('pref-autohide'); if (c) c.checked = !!on; };
 [['pref-sound', 'sound'], ['pref-autohide', 'autoHide'], ['pref-lowpower', 'lowPower']].forEach(([id, key]) => {
   $(id).onchange = e => { S[key] = e.target.checked; if (key === 'sound' && S.sound) beep(); tellMap(); persist(); };
 });

@@ -15,6 +15,7 @@ Write-Host "Building AAC Map Overlay $version"
   --add-data "ui.html;." `
   --add-data "page_tools.js;." `
   --add-data "dps.html;." `
+  --add-data "assets\icon.ico;assets" `
   --collect-submodules winrt `
   --collect-all webview `
   --collect-all adblock `
