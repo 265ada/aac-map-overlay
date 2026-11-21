@@ -6,7 +6,7 @@ map and marker pickers, opacity, click-through lock and global hotkeys.
 
 Hotkeys (work while the game has focus):
   Ctrl+Alt+M      show / hide the overlay
-  Alt+L           lock / unlock (locked = clicks go through to the game)
+  Alt+L           lock / unlock (locked = clicks go through to the game); change it in ⚙ settings
   Ctrl+Alt+Up     more opaque
   Ctrl+Alt+Down   more transparent
   Ctrl+Alt+H      hide / show the top bars
@@ -45,6 +45,7 @@ PORT = 47853  # fixed, so the map's saved Peer Link settings survive restarts
 DEFAULTS = {"map": "Auroria", "preset": "collect", "types": [], "live": False, "liveSeen": False, "adblock": True, "autoZoom": True, "autoDiscover": True, "discRadius": 8, "autoUpdate": True, "barsHidden": False, "locked": False, "profile": "manual", "target": "", "sound": True,
             "autoHide": True, "lowPower": True, "round": False, "showProgress": False, "manualFilters": None, "opacity": 0.9,
             "x": 40, "y": 120, "w": 460, "h": 560,
+            "lockKey": {"mods": 1, "vk": 0x4C, "label": "Alt+L"},
             "dps": False, "dpsX": 520, "dpsY": 120, "dpsW": 300, "dpsH": 232}
 
 user32 = ctypes.windll.user32
@@ -57,8 +58,10 @@ WS_EX_LAYERED, WS_EX_TRANSPARENT, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE = 0x80000, 
 LWA_ALPHA, LWA_COLORKEY = 0x2, 0x1
 ROUND_KEY = 0x00030201  # COLORREF of #010203: the page paints this around the round map; Windows makes it see-through
 GAME_EXE = "archeagechronicles.exe"
-MOD_ALT, MOD_CONTROL, MOD_NOREPEAT = 0x1, 0x2, 0x4000
+MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT = 0x1, 0x2, 0x4, 0x4000
 WM_HOTKEY = 0x0312
+WM_APP_LOCKKEY = 0x8001  # tells the hotkey thread to swap the lock key
+DEFAULT_LOCK_KEY = {"mods": MOD_ALT, "vk": 0x4C, "label": "Alt+L"}
 class RECT(ctypes.Structure):
     _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
@@ -93,6 +96,8 @@ class Overlay:
         self.auto_hidden = False
         self.force_show = False
         self.dps_window = None
+        self.hotkey_tid = 0
+        self.pending_lock_key = None
         self.meter = DpsMeter(self.dps_report, CFG_DIR / "dps-samples")
 
     # ---- native window helpers -------------------------------------------
@@ -268,9 +273,55 @@ class Overlay:
             self.window.evaluate_js(f"window.setBars && setBars({json.dumps(self.s['barsHidden'])})")
 
     # ---- global hotkeys ---------------------------------------------------
-    def hotkeys(self):
+    def lock_key(self):
+        k = self.s.get("lockKey") or DEFAULT_LOCK_KEY
+        try:
+            return {"mods": int(k["mods"]) & 0x7, "vk": int(k["vk"]), "label": str(k.get("label") or "")[:24]}
+        except (KeyError, TypeError, ValueError):
+            return dict(DEFAULT_LOCK_KEY)
+
+    def set_lock_key(self, key):
+        """Called from the settings panel: ask the hotkey thread to swap the lock key."""
+        try:
+            new = {"mods": int(key["mods"]) & 0x7, "vk": int(key["vk"]), "label": str(key["label"])[:24]}
+        except (KeyError, TypeError, ValueError):
+            return "That key can't be used"
         ctrl_alt = MOD_CONTROL | MOD_ALT
-        keys = {1: ("M", self.toggle_visible), 2: ("L", lambda: self.set_lock(not self.locked), MOD_ALT),
+        if new["mods"] == ctrl_alt and new["vk"] in {VK[k] for k in ("M", "H", "P", "D", "UP", "DOWN")}:
+            return f"{new['label']} is already one of the overlay's own keys"
+        is_fkey = 0x70 <= new["vk"] <= 0x87
+        if not new["mods"] and not is_fkey:
+            return "Use Ctrl, Alt or Shift with that key (F1-F24 work alone)"
+        if not self.hotkey_tid:
+            return "Hotkeys aren't ready yet, try again in a moment"
+        self.pending_lock_key = new
+        user32.PostThreadMessageW(self.hotkey_tid, WM_APP_LOCKKEY, 0, 0)
+        return ""
+
+    def _swap_lock_key(self):
+        """Runs on the hotkey thread (hotkeys belong to the thread that registered them)."""
+        new, self.pending_lock_key = self.pending_lock_key, None
+        if not new:
+            return
+        old = self.lock_key()
+        user32.UnregisterHotKey(None, 2)
+        if user32.RegisterHotKey(None, 2, new["mods"] | MOD_NOREPEAT, new["vk"]):
+            self.s["lockKey"] = new
+            self.save()
+            result = {"ok": True, **new}
+        else:  # another program owns that combo: keep the old one
+            user32.RegisterHotKey(None, 2, old["mods"] | MOD_NOREPEAT, old["vk"])
+            result = {"ok": False, **old, "error": f"{new['label']} is taken by another program"}
+        if self.window:
+            self.window.evaluate_js(f"window.onLockKey && onLockKey({json.dumps(result)})")
+        if self.dps_window:
+            self.dps_window.evaluate_js(f"window.onLockKey && onLockKey({json.dumps(result)})")
+
+    def hotkeys(self):
+        self.hotkey_tid = ctypes.windll.kernel32.GetCurrentThreadId()
+        ctrl_alt = MOD_CONTROL | MOD_ALT
+        lk = self.lock_key()
+        keys = {1: ("M", self.toggle_visible), 2: (lk["vk"], lambda: self.set_lock(not self.locked), lk["mods"]),
                 3: ("UP", lambda: self.set_opacity(self.s["opacity"] + 0.1)),
                 4: ("DOWN", lambda: self.set_opacity(self.s["opacity"] - 0.1)),
                 5: ("H", self.toggle_bars),
@@ -278,10 +329,16 @@ class Overlay:
                 7: ("D", self.toggle_dps)}
         for i, (k, _, *mods) in keys.items():
             mod = mods[0] if mods else ctrl_alt
-            if not user32.RegisterHotKey(None, i, mod | MOD_NOREPEAT, VK[k]):
+            if not user32.RegisterHotKey(None, i, mod | MOD_NOREPEAT, VK[k] if isinstance(k, str) else k):
                 print(f"Could not register hotkey {k} (mods {mod}): another app is using it.")
         msg = wt.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+            if msg.message == WM_APP_LOCKKEY:
+                try:
+                    self._swap_lock_key()
+                except Exception as e:
+                    print("lock key error:", e)
+                continue
             if msg.message == WM_HOTKEY and msg.wParam in keys:
                 try:
                     keys[msg.wParam][1]()
@@ -455,6 +512,12 @@ class Api:
 
     def toggle_dps(self):
         return self._ov.toggle_dps()
+
+    def set_lock_key(self, key):
+        return self._ov.set_lock_key(key)
+
+    def reset_lock_key(self):
+        return self._ov.set_lock_key(DEFAULT_LOCK_KEY)
 
 
 class DpsApi:

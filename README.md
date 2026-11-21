@@ -70,7 +70,7 @@ The overlay looks like a plain map: its bars and footer, and TH.GL's map buttons
 | | |
 |---|---|
 | **Ctrl+Alt+M** | Show / hide the overlay. While the game isn't in front, it shows the overlay anyway until the game is back |
-| **Alt+L** | Lock / unlock. Locking hides every bar (map only, clicks go to the game); unlocking brings the bars back. The overlay reopens locked or unlocked, the way you left it |
+| **Alt+L** | Lock / unlock (change it under **⚙ → Lock / unlock key**: click the button and press the keys you want). Locking hides every bar (map only, clicks go to the game); unlocking brings the bars back. The overlay reopens locked or unlocked, the way you left it |
 | **Ctrl+Alt+H** | Hide / show the top bars. While they're hidden, drag the thin strip at the top edge to move the window |
 | **Ctrl+Alt+P** | Next activity profile (Manual → Gathering → Exploring) |
 | **Ctrl+Alt+D** | Show / hide the DPS meter |

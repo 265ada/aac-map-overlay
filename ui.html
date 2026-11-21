@@ -76,6 +76,11 @@ body.barshidden .dragstrip:hover{background:rgba(255,138,76,.35)}
 #prefs{display:none;flex-direction:column;gap:4px;padding:8px;background:var(--bar);border-bottom:1px solid var(--line)}
 #prefs.open{display:flex}
 #prefs label{display:flex;gap:6px;align-items:center;cursor:pointer}
+#prefs .keyrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#lockkey{min-width:86px;font-weight:600;letter-spacing:.03em}
+#lockkey.listening{background:var(--accent);border-color:var(--accent);color:#1b1209}
+#lockkeymsg{font-size:11px;color:var(--muted)}
+#lockkeymsg.err{color:#ff7a6b}
 #prefs input{accent-color:var(--accent)}
 #ptr{display:none;position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:3;align-items:center;gap:6px;background:rgba(20,23,28,.88);border:1px solid var(--line);border-radius:14px;padding:3px 10px 3px 6px;font-size:12px;white-space:nowrap;pointer-events:none}
 #ptr.show{display:flex}
@@ -104,7 +109,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
   <button class="icon" id="round" type="button" title="Round minimap that turns with your facing" aria-pressed="false">⭕</button>
   <button class="icon" id="prefsbtn" type="button" title="Settings" aria-expanded="false">⚙</button>
   <button class="icon" id="filt" type="button" title="Choose markers" aria-expanded="false">☰</button>
-  <button class="icon" id="lock" type="button" title="Lock: clicks go through to the game (Alt+L to unlock)">🔒</button>
+  <button class="icon" id="lock" type="button" title="Lock: clicks go through to the game (Alt+L to unlock)" data-lk-title="Lock: clicks go through to the game ({k} to unlock)">🔒</button>
   <button class="icon" id="dpsbtn" type="button" title="Solo DPS meter (beta): reads the damage numbers on your screen. Ctrl+Alt+D" aria-pressed="false">⚔</button>
   <button class="icon" id="max" type="button" title="Maximize to this monitor (click again to go back)" aria-pressed="false">⛶</button>
   <button class="icon" id="hide" type="button" title="Hide (Ctrl+Alt+M to show)">–</button>
@@ -125,16 +130,20 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
   <label><input type="checkbox" id="pref-sound"> Sound when an unmarked pin is in range</label>
   <label><input type="checkbox" id="pref-autohide"> Only show while the game is in front (Ctrl+Alt+M shows it anyway)</label>
   <label><input type="checkbox" id="pref-lowpower"> Low-power: draw the map slower while you stand still</label>
+  <div class="keyrow"><span>Lock / unlock key</span>
+    <button type="button" id="lockkey" title="Click, then press the keys you want">Alt+L</button>
+    <button type="button" id="lockkeydef" title="Back to Alt+L">Default</button>
+    <span id="lockkeymsg" role="status"></span></div>
 </div>
 </div>
 <div class="mapwrap">
   <div class="dragstrip pywebview-drag-region" title="Drag to move · Ctrl+Alt+H shows the bars"></div>
-  <div id="mapupd" role="status"><span>Map update ready</span><span class="lk">· Alt+L to unlock, then reload</span><button type="button" id="mapupdgo">Reload map</button></div>
+  <div id="mapupd" role="status"><span>Map update ready</span><span class="lk">· <span class="lkname">Alt+L</span> to unlock, then reload</span><button type="button" id="mapupdgo">Reload map</button></div>
   <div id="upd" role="status"><span id="updtext"></span><button type="button" class="go" id="updgo">Update</button><button type="button" id="updlater">Later</button></div>
-  <div id="lockbadge" aria-hidden="true" title="Alt+L locks / unlocks">
+  <div id="lockbadge" aria-hidden="true" title="Alt+L locks / unlocks" data-lk-title="{k} locks / unlocks">
     <svg class="shut" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2.2" fill="currentColor" stroke="none"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
     <svg class="open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2.2" fill="currentColor" stroke="none"/><path d="M8 11V8a4 4 0 0 1 7.6-1.7"/></svg>
-    <span class="k">ALT+L</span>
+    <span class="k lkname up">ALT+L</span>
   </div>
   <div id="ptr" role="status"><span class="arrow" id="ptrarrow">➤</span><span id="ptrtext"></span></div>
   <div id="progbox" role="region" aria-label="Progress"></div>
@@ -146,7 +155,7 @@ body.round iframe{clip-path:circle(closest-side at 50% 50%)}
   <a href="https://archeagechronicles.th.gl/" id="credit">ArcheAge Chronicles Interactive Map</a> by The Hidden Gaming Lair
   <span id="discst" title="Auto-discover: nearest uncollected pin. Stay within range for 2 s to mark it" hidden></span>
   <span id="ads" title="Ads and trackers blocked (Brave's ad-block engine with EasyList)" hidden></span>
-  <span class="keys">Alt+L lock · Ctrl+Alt+ M hide · H bars · P profile · ↑↓ opacity</span>
+  <span class="keys"><span class="lkname">Alt+L</span> lock · Ctrl+Alt+ M hide · H bars · P profile · ↑↓ opacity</span>
   <div class="grip" id="grip" title="Drag to resize"></div>
 </div>
 <script>
@@ -204,6 +213,7 @@ function src(){
 }
 function load(){
   onDps(!!S.dps);
+  showLockKey(S.lockKey && S.lockKey.label || 'Alt+L');
   document.body.classList.toggle('live', !!S.live);
   document.body.classList.toggle('newlive', !!S.live && !S.liveSeen);
   $('live').setAttribute('aria-pressed', !!S.live);
@@ -384,6 +394,47 @@ $('max').onclick = async () => {
 $('quit').onclick = () => api() && api().quit();
 function onDps(on){ S.dps = !!on; $('dpsbtn').setAttribute('aria-pressed', !!on); }
 window.onDps = onDps;
+
+// ---- your own lock / unlock key (Alt+L by default) ----
+function showLockKey(label){
+  document.querySelectorAll('.lkname').forEach(e => e.textContent = e.classList.contains('up') ? label.toUpperCase() : label);
+  document.querySelectorAll('[data-lk-title]').forEach(e => e.title = e.dataset.lkTitle.replace('{k}', label));
+  $('lockkey').textContent = label;
+}
+function lockKeyMsg(text, err){ const m = $('lockkeymsg'); m.textContent = text || ''; m.classList.toggle('err', !!err); }
+window.onLockKey = r => {
+  S.lockKey = {mods: r.mods, vk: r.vk, label: r.label};
+  showLockKey(r.label);
+  lockKeyMsg(r.ok ? `Lock key is now ${r.label}` : r.error, !r.ok);
+};
+const KEYNAME = e => {
+  if (/^Key[A-Z]$/.test(e.code)) return e.code.slice(3);
+  if (/^Digit\d$/.test(e.code)) return e.code.slice(5);
+  if (/^Numpad\d$/.test(e.code)) return 'Num' + e.code.slice(6);
+  if (/^F\d{1,2}$/.test(e.code)) return e.code;
+  return {Backquote:'`', Minus:'-', Equal:'=', BracketLeft:'[', BracketRight:']', Backslash:'\\', Semicolon:';', Quote:"'",
+          Comma:',', Period:'.', Slash:'/', Space:'Space', Insert:'Insert', Delete:'Delete', Home:'Home', End:'End',
+          PageUp:'PageUp', PageDown:'PageDown', Pause:'Pause', ScrollLock:'ScrollLock'}[e.code] || '';
+};
+let listening = false;
+function stopListening(){ listening = false; $('lockkey').classList.remove('listening'); $('lockkey').textContent = (S.lockKey && S.lockKey.label) || 'Alt+L'; }
+$('lockkey').onclick = () => { listening = true; $('lockkey').classList.add('listening'); $('lockkey').textContent = 'Press keys…'; lockKeyMsg('Esc cancels'); $('lockkey').focus(); };
+$('lockkey').addEventListener('blur', () => { if (listening) { stopListening(); lockKeyMsg(''); } });
+document.addEventListener('keydown', async e => {
+  if (!listening) return;
+  e.preventDefault(); e.stopPropagation();
+  if (e.key === 'Escape') { stopListening(); lockKeyMsg(''); return; }
+  if (['Control', 'Alt', 'Shift', 'Meta', 'AltGraph'].includes(e.key)) return; // wait for the main key
+  const name = KEYNAME(e);
+  if (!name) { lockKeyMsg('That key can’t be used, try another', true); return; }
+  const mods = (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.shiftKey ? 4 : 0);
+  const label = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', name].filter(Boolean).join('+');
+  stopListening();
+  if (!api()) return;
+  const err = await api().set_lock_key({mods, vk: e.keyCode, label});
+  lockKeyMsg(err || 'Saving…', !!err);
+}, true);
+$('lockkeydef').onclick = async () => { if (!api()) return; const err = await api().reset_lock_key(); lockKeyMsg(err || 'Saving…', !!err); };
 $('dpsbtn').onclick = async () => { if (api()) onDps(await api().toggle_dps()); };
 $('credit2').onclick = e => { e.preventDefault(); api() ? api().open_url($('credit').href) : open($('credit').href); };
 $('credit').onclick = e => { e.preventDefault(); api() ? api().open_url($('credit').href) : open($('credit').href); };
